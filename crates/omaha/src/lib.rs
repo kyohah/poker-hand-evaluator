@@ -35,9 +35,8 @@
 //! 5-card Hand is built as `hole_pair + board_partial` (one Hand
 //! addition) instead of three `add_card` calls per combo.
 
-use phe_core::{Hand, OFFSETS, OFFSET_SHIFT, RANK_BASES};
+use phe_core::{OFFSETS, OFFSET_SHIFT, RANK_BASES};
 use phe_holdem::assets::{LOOKUP, LOOKUP_FLUSH};
-use phe_holdem::HighRule;
 
 /// Omaha high rule.
 ///
@@ -191,29 +190,6 @@ pub fn upper_bound_category(
     }
 }
 
-/// Builds the 10 partial Hands for each board-triple selection.
-#[inline]
-fn build_board_partials(board: &[usize; 5]) -> [Hand; 10] {
-    std::array::from_fn(|idx| {
-        let (a, b, c) = BOARD_TRIPLES[idx];
-        Hand::new()
-            .add_card(board[a])
-            .add_card(board[b])
-            .add_card(board[c])
-    })
-}
-
-/// Rank-only lookup. Skips the flush-mask check; the caller must
-/// guarantee the hand is non-flush. Otherwise behaviour is undefined.
-#[inline]
-fn evaluate_rank_only(hand: &Hand) -> u16 {
-    let rank_key = hand.get_key() as u32 as usize;
-    unsafe {
-        let offset = *OFFSETS.get_unchecked(rank_key >> OFFSET_SHIFT) as usize;
-        *LOOKUP.get_unchecked(rank_key.wrapping_add(offset))
-    }
-}
-
 /// Rank-only lookup driven by a pre-summed `rank_key` (the lower 32
 /// bits of `Hand::get_key()`). Skips Hand construction entirely.
 /// Caller must guarantee `rank_key = sum of RANK_BASES[rank] for the
@@ -226,6 +202,86 @@ fn evaluate_rank_only_from_key(rank_key: u32) -> u16 {
         let offset = *OFFSETS.get_unchecked(rk >> OFFSET_SHIFT) as usize;
         *LOOKUP.get_unchecked(rk.wrapping_add(offset))
     }
+}
+
+/// Path 3 inner: flush eligible AND board has a pair.
+///
+/// Both flush and non-flush combos may produce the max (Flush, but
+/// also Full House / Quads from the board pair). Each combo's path
+/// is decided by counting how many of its 5 cards are in `suit`:
+/// 5 → flush (use `LOOKUP_FLUSH` with bit-OR'd ranks); otherwise
+/// → rank-only lookup. We pre-sum partials for both paths once and
+/// branch per combo.
+#[inline]
+fn evaluate_flush_with_pair_path(
+    hole: &[usize; 4],
+    board: &[usize; 5],
+    suit: u8,
+) -> u16 {
+    let suit_u = suit as usize;
+
+    // Per-hole-card precomputations.
+    let mut hole_rk = [0u32; 4];
+    let mut hole_inc = [0u8; 4]; // 1 if in flush suit, 0 otherwise
+    let mut hole_fb = [0u16; 4]; // (1 << rank) if in suit, else 0
+    for i in 0..4 {
+        let c = hole[i];
+        let rank = c / 4;
+        hole_rk[i] = RANK_BASES[rank] as u32;
+        let in_s = (c & 3) == suit_u;
+        hole_inc[i] = in_s as u8;
+        hole_fb[i] = if in_s { 1u16 << rank } else { 0 };
+    }
+    // 6 hole-pair partials.
+    let mut pair_rk = [0u32; 6];
+    let mut pair_inc = [0u8; 6];
+    let mut pair_fb = [0u16; 6];
+    for (idx, &(i, j)) in HOLE_PAIRS.iter().enumerate() {
+        pair_rk[idx] = hole_rk[i].wrapping_add(hole_rk[j]);
+        pair_inc[idx] = hole_inc[i] + hole_inc[j];
+        pair_fb[idx] = hole_fb[i] | hole_fb[j];
+    }
+
+    // Per-board-card precomputations.
+    let mut board_rk = [0u32; 5];
+    let mut board_inc = [0u8; 5];
+    let mut board_fb = [0u16; 5];
+    for i in 0..5 {
+        let c = board[i];
+        let rank = c / 4;
+        board_rk[i] = RANK_BASES[rank] as u32;
+        let in_s = (c & 3) == suit_u;
+        board_inc[i] = in_s as u8;
+        board_fb[i] = if in_s { 1u16 << rank } else { 0 };
+    }
+    // 10 board-triple partials.
+    let mut triple_rk = [0u32; 10];
+    let mut triple_inc = [0u8; 10];
+    let mut triple_fb = [0u16; 10];
+    for (idx, &(a, b, c)) in BOARD_TRIPLES.iter().enumerate() {
+        triple_rk[idx] = board_rk[a]
+            .wrapping_add(board_rk[b])
+            .wrapping_add(board_rk[c]);
+        triple_inc[idx] = board_inc[a] + board_inc[b] + board_inc[c];
+        triple_fb[idx] = board_fb[a] | board_fb[b] | board_fb[c];
+    }
+
+    let mut best: u16 = 0;
+    for pi in 0..6usize {
+        for ti in 0..10usize {
+            // Combo is a 5-card flush iff all 5 cards share `suit`.
+            let r = if pair_inc[pi] + triple_inc[ti] == 5 {
+                let flush_key = pair_fb[pi] | triple_fb[ti];
+                unsafe { *LOOKUP_FLUSH.get_unchecked(flush_key as usize) }
+            } else {
+                evaluate_rank_only_from_key(pair_rk[pi].wrapping_add(triple_rk[ti]))
+            };
+            if r > best {
+                best = r;
+            }
+        }
+    }
+    best
 }
 
 /// Path 1 inner: no flush possible across the entire 9-card layout.
@@ -269,26 +325,6 @@ fn evaluate_no_flush_path(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
     for &pair_rk in &pair_rks {
         for &triple_rk in &triple_rks {
             let r = evaluate_rank_only_from_key(pair_rk.wrapping_add(triple_rk));
-            if r > best {
-                best = r;
-            }
-        }
-    }
-    best
-}
-
-/// Inner loop over all 60 (hole_pair, board_partial) combos.
-#[inline]
-fn evaluate_full_60<F>(hole: &[usize; 4], board_partials: &[Hand; 10], eval: F) -> u16
-where
-    F: Fn(&Hand) -> u16,
-{
-    let mut best: u16 = 0;
-    for &(i, j) in &HOLE_PAIRS {
-        let hp = Hand::new().add_card(hole[i]).add_card(hole[j]);
-        for bp in board_partials {
-            let h = hp + *bp;
-            let r = eval(&h);
             if r > best {
                 best = r;
             }
@@ -384,9 +420,9 @@ impl OmahaHighRule {
                     // Path 2: flush dominates → suit-restricted enum only.
                     evaluate_flush_dominate(hole_cards, board, s)
                 } else {
-                    // Path 3: flush + board pair → full eval (FH/Quads possible).
-                    let board_partials = build_board_partials(board);
-                    evaluate_full_60(hole_cards, &board_partials, HighRule::evaluate)
+                    // Path 3: flush + board pair → Hand-free per-combo
+                    // dispatch (FH/Quads still possible via rank path).
+                    evaluate_flush_with_pair_path(hole_cards, board, s)
                 }
             }
         }
