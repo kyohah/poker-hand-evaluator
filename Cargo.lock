@@ -292,6 +292,7 @@ version = "0.1.0"
 name = "phe-deuce-seven"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "phe-core",
  "phe-deuce-seven-assets",
  "phe-holdem",
@@ -306,6 +307,7 @@ version = "0.1.0"
 name = "phe-eight-low"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "phe-eight-low-assets",
 ]
 
@@ -317,6 +319,7 @@ version = "0.1.0"
 name = "phe-holdem"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "phe-core",
  "phe-holdem-assets",
 ]

@@ -10,3 +10,10 @@ description = "Hold'em high evaluator (5-7 cards) on top of phe-core"
 [dependencies]
 phe-core = { path = "../core" }
 phe-holdem-assets = { path = "../holdem-assets" }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "eval"
+harness = false

@@ -9,3 +9,10 @@ description = "8-or-better and A-5 lowball (Razz) hand evaluator (5-7 cards)"
 
 [dependencies]
 phe-eight-low-assets = { path = "../eight-low-assets" }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "eval"
+harness = false

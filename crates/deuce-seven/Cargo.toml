@@ -14,3 +14,8 @@ phe-holdem = { path = "../holdem" }
 
 [dev-dependencies]
 phe-scripts = { path = "../../scripts" }
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "eval"
+harness = false
