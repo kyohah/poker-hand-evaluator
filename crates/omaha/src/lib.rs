@@ -36,7 +36,7 @@
 //! addition) instead of three `add_card` calls per combo.
 
 use phe_core::{Hand, OFFSETS, OFFSET_SHIFT};
-use phe_holdem::assets::LOOKUP;
+use phe_holdem::assets::{LOOKUP, LOOKUP_FLUSH};
 use phe_holdem::HighRule;
 
 /// Omaha high rule.
@@ -239,46 +239,62 @@ where
 /// Preconditions: `flush_suit` is `Some(suit)` and the board has no
 /// pair. Under these, the best combo is the best flush (or SF), and
 /// every other 5-card combo (HighCard..Straight) loses to it.
+///
+/// Implementation: skip the [`Hand`]-building round-trip and the
+/// [`HighRule::evaluate`] flush dispatch. Each chosen combo is 5
+/// same-suit cards, so the 13-bit flush key is just
+/// `OR (1 << rank_i)` over the 5 cards, looked up directly in
+/// `LOOKUP_FLUSH`. The lookup table itself encodes Straight-Flush
+/// vs. plain-Flush ranks, so this is correct regardless of whether
+/// `board_no_straight` happens to hold (when it does, the lookup
+/// just never returns the SF range — no extra logic needed).
 fn evaluate_flush_dominate(
     hole: &[usize; 4],
     board: &[usize; 5],
     suit: u8,
 ) -> u16 {
     let suit_u = suit as usize;
-    let mut hole_in_s = [0usize; 4];
+
+    // Collect rank-bits (1 << rank) of cards in `suit` from hole and board.
+    let mut hole_bits = [0u16; 4];
     let mut hh = 0;
     for &c in hole {
         if c & 3 == suit_u {
-            hole_in_s[hh] = c;
+            hole_bits[hh] = 1u16 << (c / 4);
             hh += 1;
         }
     }
-    let mut board_in_s = [0usize; 5];
+    let mut board_bits = [0u16; 5];
     let mut bb = 0;
     for &c in board {
         if c & 3 == suit_u {
-            board_in_s[bb] = c;
+            board_bits[bb] = 1u16 << (c / 4);
             bb += 1;
         }
     }
     debug_assert!(hh >= 2 && bb >= 3);
 
+    // Pre-OR the C(bb, 3) board triples once. Up to 10.
+    let mut triples = [0u16; 10];
+    let mut tt = 0;
+    for a in 0..bb {
+        for b in (a + 1)..bb {
+            for c in (b + 1)..bb {
+                triples[tt] = board_bits[a] | board_bits[b] | board_bits[c];
+                tt += 1;
+            }
+        }
+    }
+
     let mut best: u16 = 0;
     for i in 0..hh {
         for j in (i + 1)..hh {
-            let h2 = Hand::new().add_card(hole_in_s[i]).add_card(hole_in_s[j]);
-            for a in 0..bb {
-                for b in (a + 1)..bb {
-                    for c in (b + 1)..bb {
-                        let h = h2
-                            .add_card(board_in_s[a])
-                            .add_card(board_in_s[b])
-                            .add_card(board_in_s[c]);
-                        let r = HighRule::evaluate(&h);
-                        if r > best {
-                            best = r;
-                        }
-                    }
+            let pair = hole_bits[i] | hole_bits[j];
+            for &triple in &triples[..tt] {
+                let flush_key = pair | triple;
+                let r = unsafe { *LOOKUP_FLUSH.get_unchecked(flush_key as usize) };
+                if r > best {
+                    best = r;
                 }
             }
         }
