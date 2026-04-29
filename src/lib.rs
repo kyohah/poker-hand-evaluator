@@ -21,6 +21,21 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+// Sub-crate re-exports. These keep raw access to the underlying types
+// (Hand, lookup tables, encoding constants) available to downstream
+// callers — most notably GPU code that builds device-side copies of
+// LOOKUP / OFFSETS / CARDS — without forcing them to depend on each
+// internal crate by hand.
+pub use phe_core as core;
+#[cfg(feature = "holdem")]
+pub use phe_holdem as holdem;
+#[cfg(feature = "eight-low")]
+pub use phe_eight_low as eight_low;
+#[cfg(feature = "deuce-seven")]
+pub use phe_deuce_seven as deuce_seven;
+#[cfg(feature = "omaha")]
+pub use phe_omaha as omaha;
+
 /// A rule that can score a poker hand.
 ///
 /// Implementations are typically zero-sized unit structs (`HighRule`,
