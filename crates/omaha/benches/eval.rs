@@ -11,20 +11,29 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use phe_core::Hand;
 use phe_holdem::HighRule;
-use phe_omaha::{flush_possible, OmahaHighRule};
+use phe_omaha::{board_has_no_pair, flush_possible, flush_suit, OmahaHighRule};
 use std::sync::OnceLock;
 
 const NUM_FIXTURES: usize = 10_000;
 const SEED: u64 = 0xDEAD_BEEF_CAFE_BABE;
+const SEED_STRUCTURED: u64 = 0xC0FF_EE_DEAD_BEEF;
 
-/// 10K (hole, board) fixtures, generated **exactly once** for the
-/// entire bench process. Both `optimized` and `naive` benches read
-/// from the same slice, and `b.iter` just loops over it — no
+/// 10K random (hole, board) fixtures, generated **exactly once** for
+/// the entire bench process. Both `optimized` and `naive` benches
+/// read from the same slice, and `b.iter` just loops over it — no
 /// regeneration per iteration.
 static FIXTURES: OnceLock<Vec<([usize; 4], [usize; 5])>> = OnceLock::new();
 
+/// 10K fixtures pre-filtered to the flush-dominates fast path: board
+/// has no pair AND a flush_suit exists. Same OnceLock pattern.
+static STRUCTURED_FIXTURES: OnceLock<Vec<([usize; 4], [usize; 5])>> = OnceLock::new();
+
 fn fixtures() -> &'static [([usize; 4], [usize; 5])] {
     FIXTURES.get_or_init(generate_fixtures)
+}
+
+fn structured_fixtures() -> &'static [([usize; 4], [usize; 5])] {
+    STRUCTURED_FIXTURES.get_or_init(generate_structured_fixtures)
 }
 
 /// Linear-congruential PRNG (PCG-style constants). Enough randomness
@@ -44,9 +53,8 @@ impl Rng {
     }
 }
 
-/// Builds 10K deterministic (hole, board) configurations. Each hand
-/// uses 9 distinct cards drawn from the 52-card deck via Fisher-Yates
-/// partial shuffle (first 9 positions only).
+/// Builds 10K deterministic random (hole, board) configurations.
+/// Each hand uses 9 distinct cards via partial Fisher-Yates shuffle.
 fn generate_fixtures() -> Vec<([usize; 4], [usize; 5])> {
     let mut rng = Rng::new(SEED);
     let mut fixtures = Vec::with_capacity(NUM_FIXTURES);
@@ -60,6 +68,27 @@ fn generate_fixtures() -> Vec<([usize; 4], [usize; 5])> {
             [deck[0], deck[1], deck[2], deck[3]],
             [deck[4], deck[5], deck[6], deck[7], deck[8]],
         ));
+    }
+    fixtures
+}
+
+/// Builds 10K deterministic random (hole, board) configurations
+/// **filtered** to the flush-dominates fast path: board has 5 distinct
+/// ranks AND some suit has both ≥2 hole and ≥3 board cards.
+fn generate_structured_fixtures() -> Vec<([usize; 4], [usize; 5])> {
+    let mut rng = Rng::new(SEED_STRUCTURED);
+    let mut fixtures = Vec::with_capacity(NUM_FIXTURES);
+    while fixtures.len() < NUM_FIXTURES {
+        let mut deck: [usize; 52] = std::array::from_fn(|i| i);
+        for i in 0..9 {
+            let j = i + (rng.next_u64() as usize) % (52 - i);
+            deck.swap(i, j);
+        }
+        let hole = [deck[0], deck[1], deck[2], deck[3]];
+        let board = [deck[4], deck[5], deck[6], deck[7], deck[8]];
+        if board_has_no_pair(&board) && flush_possible(&hole, &board) {
+            fixtures.push((hole, board));
+        }
     }
     fixtures
 }
@@ -92,18 +121,25 @@ fn naive_eval(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
 fn bench_random_10k(c: &mut Criterion) {
     let f = fixtures();
 
-    // Report fast-path vs full-path split so wins are interpretable.
-    let flush_count = f.iter().filter(|(h, b)| flush_possible(h, b)).count();
+    // Report path split for the random fixtures.
+    let no_flush = f.iter().filter(|(h, b)| !flush_possible(h, b)).count();
+    let flush_dominates = f
+        .iter()
+        .filter(|(h, b)| flush_suit(h, b).is_some() && board_has_no_pair(b))
+        .count();
+    let flush_with_pair = NUM_FIXTURES - no_flush - flush_dominates;
     eprintln!(
-        "fixtures: {} total | rank-only fast path: {} ({:.1}%) | full path: {} ({:.1}%)",
-        NUM_FIXTURES,
-        NUM_FIXTURES - flush_count,
-        100.0 * (NUM_FIXTURES - flush_count) as f64 / NUM_FIXTURES as f64,
-        flush_count,
-        100.0 * flush_count as f64 / NUM_FIXTURES as f64,
+        "random fixtures path split: \
+         no-flush {} ({:.1}%) | flush-dominates {} ({:.1}%) | flush+board-pair {} ({:.1}%)",
+        no_flush,
+        100.0 * no_flush as f64 / NUM_FIXTURES as f64,
+        flush_dominates,
+        100.0 * flush_dominates as f64 / NUM_FIXTURES as f64,
+        flush_with_pair,
+        100.0 * flush_with_pair as f64 / NUM_FIXTURES as f64,
     );
 
-    let mut group = c.benchmark_group("omaha_eval_10k");
+    let mut group = c.benchmark_group("omaha_eval_10k_random");
 
     group.bench_function("optimized", |b| {
         b.iter(|| {
@@ -128,5 +164,38 @@ fn bench_random_10k(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_random_10k);
+fn bench_structured_flush_dominates(c: &mut Criterion) {
+    let f = structured_fixtures();
+    eprintln!(
+        "structured fixtures: {} total, all hit the flush-dominates fast path \
+         (board no pair + flush suit eligible).",
+        NUM_FIXTURES,
+    );
+
+    let mut group = c.benchmark_group("omaha_eval_10k_flush_dominates");
+
+    group.bench_function("optimized", |b| {
+        b.iter(|| {
+            let mut acc: u32 = 0;
+            for (hole, board) in f {
+                acc = acc.wrapping_add(OmahaHighRule::evaluate(hole, board) as u32);
+            }
+            black_box(acc)
+        })
+    });
+
+    group.bench_function("naive", |b| {
+        b.iter(|| {
+            let mut acc: u32 = 0;
+            for (hole, board) in f {
+                acc = acc.wrapping_add(naive_eval(hole, board) as u32);
+            }
+            black_box(acc)
+        })
+    });
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_random_10k, bench_structured_flush_dominates);
 criterion_main!(benches);
