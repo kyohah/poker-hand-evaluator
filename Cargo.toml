@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = []
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["kyohah <kyohah@gmail.com>"]
+repository = "https://github.com/kyohah/poker-hand-evaluator"
+
+# Sub-crate path deps are declared inline as each crate is bootstrapped.
+[workspace.dependencies]
+
+[profile.release]
+lto = "thin"
+
+[package]
+name = "poker-hand-evaluator"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Unified poker hand evaluator: Hold'em, 8-or-better low, A-5 lowball, 2-7 lowball, Omaha"
+
+[features]
+default = []
+# Variant features are wired up as each sub-crate is brought online.
+all = []
+
+[dependencies]
