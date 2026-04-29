@@ -10,3 +10,10 @@ description = "Omaha high evaluator (4 hole + 5 board, best-of-60) on top of phe
 [dependencies]
 phe-core = { path = "../core" }
 phe-holdem = { path = "../holdem" }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "eval"
+harness = false
