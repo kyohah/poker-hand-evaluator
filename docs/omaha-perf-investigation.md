@@ -199,8 +199,10 @@ Bigger lift but the only path to PLO4 < 30 ns/eval. Outline:
 - **HighCard fast path** for boards satisfying
   `board_has_no_pair && board_no_straight` plus hole with no pocket
   pair and no hole-board rank match. Under those, the answer is "top 2
-  hole + top 3 board" and reduces to 1 lookup. Frequency ~5-10% of
-  random hands; saves ~150 ns each → ~7-15 ns/eval average. Modest.
+  hole + top 3 board" and reduces to 1 lookup.
+  **Measured frequency: 0.27% of random hands** (1M sample), saving
+  ~140 ns each ⇒ ~0.4 ns/eval average. Far below noise; not worth the
+  detection-cost overhead on the other 99.7% of calls. Discarded.
 - **`evaluate_rank_only_from_key` SIMD** — gather two pair_rk +
   triple_rk pairs in parallel via AVX2 `_mm256_i32gather_epi32`. The
   L2-bound LOOKUP serializes most of the gather, so projected gain
@@ -345,6 +347,64 @@ The `kev` module stays in the tree because:
 The Cactus-Kev kernel switch (recommendation #1 above) gets us **~3-4×
 to ~37 ns/eval = ~9× Hold'em**, which is *better* than 6× but still
 short of 3×. It's the right intermediate step.
+
+## Final summary of this session
+
+What changed in `main`:
+
+| commit  | change                                                              | ns/eval |
+|---------|---------------------------------------------------------------------|--------:|
+| 4767ffc | (rebased baseline; bench infrastructure + 60-combo brute force)     | 195     |
+| dbf6532 | board-partial cache + flush-impossible fast path                    | 171     |
+| 891ad07 | flush-dominates fast path (no-pair board)                           | 160     |
+| 9a16dd1 | + `board_no_straight` predicate (no eval change)                    | 161     |
+| cb041bc | + `upper_bound_category` helper (no eval change)                    | 159     |
+| f7861c5 | path 2 bypasses `Hand` + uses `LOOKUP_FLUSH` directly               | 158     |
+| 8c457b5 | path 1 bypasses `Hand`, direct `RANK_BASES` sum                     | 147     |
+| 2e88c26 | path 3 bypasses `Hand`, per-combo dispatch                          | 143     |
+| 57cdca5 | (Cactus-Kev kernel implemented, **kept as utility** but slower)     | 143     |
+
+Net: **195 → 143 ns/eval** (~1.36× speedup) over the rebased history.
+On absolute terms still ~14× our Hold'em high single-eval, vs the
+user's 3× target.
+
+What was tried and discarded:
+
+- **Branch-and-bound prune** (with sort): ~43% slowdown. Overhead of
+  upper-bound + sort + `board_no_straight` recompute > savings.
+- **`#[inline(always)]` on `evaluate_rank_only_from_key`**: ~6%
+  slowdown. ICache pressure from inlining 60 copies of the lookup
+  chain.
+- **Cactus-Kev kernel switch**: ~2× slowdown. Per-combo arithmetic
+  cost dominates the L1-fit table benefit.
+- **HighCard direct compute**: 0.27% applicable, saving ~0.4 ns/eval
+  average. Below noise.
+
+What's left for the user:
+
+1. **9-card direct eval** (analogue of b-inary's article §4.7,
+   extended to 9 cards with the Omaha must-use-2-hole constraint
+   baked into the perfect-hash table). The article doesn't cover
+   this and `RANK_BASES` has 219 collisions over the 270,270 9-card
+   multisets, so the rank bases need to be regenerated. PHEvaluator
+   does this with a quinary base-5 hash; an in-tree implementation
+   following the §4.7 pattern is plausible at ~1-2 weeks of work.
+   This is the only path to the 3× Hold'em target.
+2. **OMPEval suit isomorphism** for *equity loops* (many evals per
+   board). 2-3× in solver hot loops; nothing for single-eval bench.
+   Would integrate at the solver level (`poker-cuda-solver`), not in
+   `phe-omaha`.
+
+Useful primitives left in tree for downstream:
+
+- `phe_omaha::eval_5cards_kev` + `kev_rank_to_packed` — Cactus-Kev
+  5-card kernel with conversion to our packed format. Useful for
+  fixed-5-card variants (5-card draw, 2-7 lowball single-draw, Razz)
+  where 60-combo amortisation isn't relevant.
+- `phe_omaha::upper_bound_category` — per-hole-pair max-category
+  bound, public for solver-side custom prune logic.
+- `phe_omaha::flush_suit`, `flush_possible`, `board_has_no_pair`,
+  `board_no_straight` — structural predicates exposed for downstream.
 
 ## References
 
