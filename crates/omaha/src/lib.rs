@@ -108,6 +108,34 @@ pub fn board_has_no_pair(board: &[usize; 5]) -> bool {
     true
 }
 
+/// True if no 5-card straight can land in *any* (hole_pair,
+/// board_triple) combo, regardless of what hole the player holds. A
+/// 5-card combo uses exactly 3 board cards, so a straight via the
+/// 5-rank window `P` is reachable only when board has ≥ 3 ranks in
+/// `P`. We therefore check every 5-rank window (the 9 standard
+/// windows starting at ranks 0..8 plus the wheel `{12, 0, 1, 2, 3}`)
+/// and return `true` only when *every* window has ≤ 2 board ranks.
+#[inline]
+pub fn board_no_straight(board: &[usize; 5]) -> bool {
+    let mut rank_mask: u16 = 0;
+    for &c in board {
+        rank_mask |= 1u16 << (c / 4);
+    }
+    // 9 standard windows: ranks {r, r+1, r+2, r+3, r+4} for r = 0..=8.
+    for r in 0u32..=8 {
+        let window: u16 = 0b1_1111u16 << r;
+        if (rank_mask & window).count_ones() >= 3 {
+            return false;
+        }
+    }
+    // Wheel: A-2-3-4-5 = ranks {0, 1, 2, 3, 12}.
+    let wheel: u16 = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 12);
+    if (rank_mask & wheel).count_ones() >= 3 {
+        return false;
+    }
+    true
+}
+
 /// Builds the 10 partial Hands for each board-triple selection.
 #[inline]
 fn build_board_partials(board: &[usize; 5]) -> [Hand; 10] {
