@@ -51,25 +51,53 @@ const BINOM: [[u32; 6]; 17] = [
 /// comparator becomes a `cmov` pair).
 #[inline]
 fn sort4(a: &mut [u32; 4]) {
-    if a[0] > a[1] { a.swap(0, 1); }
-    if a[2] > a[3] { a.swap(2, 3); }
-    if a[0] > a[2] { a.swap(0, 2); }
-    if a[1] > a[3] { a.swap(1, 3); }
-    if a[1] > a[2] { a.swap(1, 2); }
+    if a[0] > a[1] {
+        a.swap(0, 1);
+    }
+    if a[2] > a[3] {
+        a.swap(2, 3);
+    }
+    if a[0] > a[2] {
+        a.swap(0, 2);
+    }
+    if a[1] > a[3] {
+        a.swap(1, 3);
+    }
+    if a[1] > a[2] {
+        a.swap(1, 2);
+    }
 }
 
 /// In-place ascending sort of 5 elements via a 9-comparator network.
 #[inline]
 fn sort5(a: &mut [u32; 5]) {
-    if a[0] > a[1] { a.swap(0, 1); }
-    if a[3] > a[4] { a.swap(3, 4); }
-    if a[2] > a[4] { a.swap(2, 4); }
-    if a[2] > a[3] { a.swap(2, 3); }
-    if a[1] > a[4] { a.swap(1, 4); }
-    if a[0] > a[3] { a.swap(0, 3); }
-    if a[0] > a[2] { a.swap(0, 2); }
-    if a[1] > a[3] { a.swap(1, 3); }
-    if a[1] > a[2] { a.swap(1, 2); }
+    if a[0] > a[1] {
+        a.swap(0, 1);
+    }
+    if a[3] > a[4] {
+        a.swap(3, 4);
+    }
+    if a[2] > a[4] {
+        a.swap(2, 4);
+    }
+    if a[2] > a[3] {
+        a.swap(2, 3);
+    }
+    if a[1] > a[4] {
+        a.swap(1, 4);
+    }
+    if a[0] > a[3] {
+        a.swap(0, 3);
+    }
+    if a[0] > a[2] {
+        a.swap(0, 2);
+    }
+    if a[1] > a[3] {
+        a.swap(1, 3);
+    }
+    if a[1] > a[2] {
+        a.swap(1, 2);
+    }
 }
 
 /// Multiset combinatorial-number-system encoder for the hole's 4
@@ -84,10 +112,7 @@ fn hole_index(hole: &[usize; 4]) -> usize {
     ];
     sort4(&mut r);
     let r = [r[0] as usize, r[1] as usize, r[2] as usize, r[3] as usize];
-    (BINOM[r[0]][1]
-        + BINOM[r[1] + 1][2]
-        + BINOM[r[2] + 2][3]
-        + BINOM[r[3] + 3][4]) as usize
+    (BINOM[r[0]][1] + BINOM[r[1] + 1][2] + BINOM[r[2] + 2][3] + BINOM[r[3] + 3][4]) as usize
 }
 
 /// Multiset combinatorial-number-system encoder for the board's 5
@@ -102,7 +127,13 @@ fn board_index(board: &[usize; 5]) -> usize {
         (board[4] / 4) as u32,
     ];
     sort5(&mut r);
-    let r = [r[0] as usize, r[1] as usize, r[2] as usize, r[3] as usize, r[4] as usize];
+    let r = [
+        r[0] as usize,
+        r[1] as usize,
+        r[2] as usize,
+        r[3] as usize,
+        r[4] as usize,
+    ];
     (BINOM[r[0]][1]
         + BINOM[r[1] + 1][2]
         + BINOM[r[2] + 2][3]
@@ -147,4 +178,3 @@ pub(crate) fn prefetch_at(_key: usize) {}
 pub(crate) fn evaluate(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
     lookup_at(key(hole, board))
 }
-

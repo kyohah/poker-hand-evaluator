@@ -16,32 +16,32 @@ fn rank(s: &str) -> u16 {
 fn straight_flushes() {
     assert_eq!(rank("AsKsQsJsTs7d5s"), (8 << 12) + 9);
     assert_eq!(rank("Ac7c6c5c4c3c2c"), (8 << 12) + 2);
-    assert_eq!(rank("AdQsJc5d4d3d2d"), (8 << 12) + 0);
+    assert_eq!(rank("AdQsJc5d4d3d2d"), 8 << 12);
 }
 
 #[test]
 fn four_of_a_kinds() {
     assert_eq!(rank("AsAcAhAdKsQcTh"), (7 << 12) + 155);
-    assert_eq!(rank("3d3h3s2c2d2h2s"), (7 << 12) + 0);
+    assert_eq!(rank("3d3h3s2c2d2h2s"), 7 << 12);
 }
 
 #[test]
 fn full_houses() {
     assert_eq!(rank("AsAdAhKcKdKh2d"), (6 << 12) + 155);
     assert_eq!(rank("4h4c3s3c2d2c2h"), (6 << 12) + 1);
-    assert_eq!(rank("5h4c3s3c2d2c2h"), (6 << 12) + 0);
+    assert_eq!(rank("5h4c3s3c2d2c2h"), 6 << 12);
 }
 
 #[test]
 fn flushes() {
     assert_eq!(rank("AhKhQhJh9h9c9s"), (5 << 12) + 1276);
-    assert_eq!(rank("Js7c6d5c4c3c2c"), (5 << 12) + 0);
+    assert_eq!(rank("Js7c6d5c4c3c2c"), 5 << 12);
 }
 
 #[test]
 fn straights() {
     assert_eq!(rank("AhKcKdKhQcJdTs"), (4 << 12) + 9);
-    assert_eq!(rank("Ac8c7c5d4d3d2d"), (4 << 12) + 0);
+    assert_eq!(rank("Ac8c7c5d4d3d2d"), 4 << 12);
 }
 
 #[test]
@@ -64,8 +64,8 @@ fn one_pairs() {
 
 #[test]
 fn high_cards() {
-    assert_eq!(rank("AdKdQdJd9s3h2c"), (0 << 12) + 1276);
-    assert_eq!(rank("9h8s7d5d4d3c2d"), (0 << 12) + 48);
+    assert_eq!(rank("AdKdQdJd9s3h2c"), 1276);
+    assert_eq!(rank("9h8s7d5d4d3c2d"), 48);
 }
 
 #[test]
@@ -74,5 +74,5 @@ fn hand_addition_then_evaluate() {
     let hand2 = parse_hand("5h4s").unwrap();
     let board = parse_hand("3s3c2d2c2h").unwrap();
     assert_eq!(HighRule::evaluate(&(hand1 + board)), (6 << 12) + 1);
-    assert_eq!(HighRule::evaluate(&(hand2 + board)), (6 << 12) + 0);
+    assert_eq!(HighRule::evaluate(&(hand2 + board)), 6 << 12);
 }

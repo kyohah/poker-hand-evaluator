@@ -99,6 +99,12 @@ impl Hand {
     }
 }
 
+// `clippy::suspicious_arithmetic_impl` flags the `<<` and `wrapping_sub`
+// inside `Add`. Both are intentional: the suit-key counters are stored
+// in the upper bits of `key`, and we need to undo the per-operand
+// `0x3333` initial offset when summing two hands' keys. This is a
+// perfect-hash detail, not an arithmetic mistake.
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Add for Hand {
     type Output = Self;
     #[inline]
@@ -113,6 +119,7 @@ impl Add for Hand {
     }
 }
 
+#[allow(clippy::suspicious_op_assign_impl)]
 impl AddAssign for Hand {
     #[inline]
     fn add_assign(&mut self, rhs: Self) {

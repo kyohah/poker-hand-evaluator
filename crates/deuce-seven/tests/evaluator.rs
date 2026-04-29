@@ -22,7 +22,12 @@ fn nuts_is_seven_five_four_three_two() {
     let nuts = DeuceSevenLowRule::evaluate(&h("7s5h4d3c2s"));
     // Nothing should beat this.
     let other_strong = DeuceSevenLowRule::evaluate(&h("8s5h4d3c2s"));
-    assert!(nuts > other_strong, "nuts {:?} should beat 8-low {:?}", nuts, other_strong);
+    assert!(
+        nuts > other_strong,
+        "nuts {:?} should beat 8-low {:?}",
+        nuts,
+        other_strong
+    );
 }
 
 #[test]
@@ -63,14 +68,22 @@ fn flush_is_bad() {
     // as a 2-7 hand at this rank set).
     let flush = DeuceSevenLowRule::evaluate(&h("7s5s4s3s2s"));
     let no_flush = DeuceSevenLowRule::evaluate(&h("7s5h4d3c2s"));
-    assert!(no_flush > flush, "no-flush should win, got {:?} vs {:?}", no_flush, flush);
+    assert!(
+        no_flush > flush,
+        "no-flush should win, got {:?} vs {:?}",
+        no_flush,
+        flush
+    );
 }
 
 #[test]
 fn six_or_seven_card_eval_panics() {
     let h6 = h("As2d3h4c5s6d");
     let r = std::panic::catch_unwind(|| DeuceSevenLowRule::evaluate(&h6));
-    assert!(r.is_err(), "DeuceSevenLowRule::evaluate must panic on 6-card hands");
+    assert!(
+        r.is_err(),
+        "DeuceSevenLowRule::evaluate must panic on 6-card hands"
+    );
 }
 
 /// Exhaustive C(52,5) cross-validation against the naive evaluator that

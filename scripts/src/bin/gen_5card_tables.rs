@@ -16,6 +16,8 @@
 //! `OFFSETS_5C: [i32; N]` and `LOOKUP_5C: [u16; M]` and the
 //! `OFFSET_SHIFT_5C: usize` chosen.
 
+#![allow(clippy::needless_range_loop)]
+
 use phe_core::{NUMBER_OF_RANKS, OFFSETS, OFFSET_SHIFT, RANK_BASES};
 use phe_holdem_assets::LOOKUP;
 use std::cmp::max;
@@ -97,7 +99,7 @@ fn main() {
         let mut chosen: i64 = start;
         'search: for off in start.. {
             for &c in cols {
-                let pos = (c as i64 + off) as i64;
+                let pos = c as i64 + off;
                 if pos < 0 || (pos as usize) >= filled.len() {
                     continue 'search;
                 }
@@ -164,7 +166,12 @@ fn main() {
     )
     .unwrap();
     writeln!(file).unwrap();
-    writeln!(file, "pub const OFFSET_SHIFT_5C: u32 = {};", OFFSET_SHIFT_5C).unwrap();
+    writeln!(
+        file,
+        "pub const OFFSET_SHIFT_5C: u32 = {};",
+        OFFSET_SHIFT_5C
+    )
+    .unwrap();
     writeln!(file).unwrap();
     writeln!(
         file,

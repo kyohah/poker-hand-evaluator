@@ -3,6 +3,8 @@
 //! Cross-validates the lookup-driven evaluator against a naive
 //! 5-from-7 brute-force evaluator and checks 5-card category counts.
 
+#![allow(clippy::needless_range_loop)]
+
 use phe_eight_low::{get_low_category, qualifies_8_or_better, Hand, LowHandCategory};
 use phe_eight_low_assets::constants::NUMBER_OF_CARDS;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -88,7 +90,10 @@ static NAIVE_TABLE: OnceLock<NaiveTable> = OnceLock::new();
 
 fn naive_eval_5(ranks: &[usize; 5]) -> u16 {
     let table = NAIVE_TABLE.get_or_init(build_naive_table);
-    *table.key_to_rank.get(&category_and_tiebreak(ranks)).unwrap()
+    *table
+        .key_to_rank
+        .get(&category_and_tiebreak(ranks))
+        .unwrap()
 }
 
 fn naive_eval_7cards(cards: &[usize; 7]) -> u16 {
@@ -135,9 +140,15 @@ fn all_5card_combinations() {
 
     assert_eq!(rankset.len(), 6175);
     assert_eq!(category_counts[LowHandCategory::NoPair as usize], 1_317_888);
-    assert_eq!(category_counts[LowHandCategory::OnePair as usize], 1_098_240);
+    assert_eq!(
+        category_counts[LowHandCategory::OnePair as usize],
+        1_098_240
+    );
     assert_eq!(category_counts[LowHandCategory::TwoPair as usize], 123_552);
-    assert_eq!(category_counts[LowHandCategory::ThreeOfAKind as usize], 54_912);
+    assert_eq!(
+        category_counts[LowHandCategory::ThreeOfAKind as usize],
+        54_912
+    );
     assert_eq!(category_counts[LowHandCategory::FullHouse as usize], 3_744);
     assert_eq!(category_counts[LowHandCategory::FourOfAKind as usize], 624);
 }
@@ -194,7 +205,10 @@ fn edge_cases() {
     let worst_np = "9cTdJhQsKc".parse::<Hand>().unwrap().evaluate();
     assert!(worst_np < forced_pair);
 
-    assert_eq!(get_low_category(eval("Ac2d3h4s5c6d7h")), LowHandCategory::NoPair);
+    assert_eq!(
+        get_low_category(eval("Ac2d3h4s5c6d7h")),
+        LowHandCategory::NoPair
+    );
     assert_eq!(get_low_category(forced_pair), LowHandCategory::OnePair);
 }
 

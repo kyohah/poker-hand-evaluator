@@ -33,7 +33,12 @@ fn qualified_wheel_strictly_better_than_eight_low() {
 fn qualified_any_qualifier_beats_any_non_qualifier() {
     let q = EightLowQualifiedRule::evaluate(&h("Ac2d3h4s8cTdKh"));
     let nq = EightLowQualifiedRule::evaluate(&h("Ac2d3h4s9cTdKh"));
-    assert!(q > nq, "qualifier {:?} should beat non-qualifier {:?}", q, nq);
+    assert!(
+        q > nq,
+        "qualifier {:?} should beat non-qualifier {:?}",
+        q,
+        nq
+    );
 }
 
 #[test]
@@ -43,7 +48,12 @@ fn ace_five_returns_rank_unconditionally() {
     // hand can never escape FourOfAKind — strictly worse than any no-pair.
     let nine_low = AceFiveLowRule::evaluate(&h("Ac2d3h4s9cTdKh"));
     let quads = AceFiveLowRule::evaluate(&h("AcAdAhAsKcQdJh"));
-    assert!(nine_low > quads, "nine-low {:?} should beat quads {:?}", nine_low, quads);
+    assert!(
+        nine_low > quads,
+        "nine-low {:?} should beat quads {:?}",
+        nine_low,
+        quads
+    );
 }
 
 #[test]

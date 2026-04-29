@@ -15,11 +15,18 @@ use phe_holdem::{get_hand_category, HandCategory, HighRule};
 use phe_omaha::{board_has_no_pair, flush_suit, OmahaHighRule};
 
 fn naive(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
-    const HOLE_PAIRS: [(usize, usize); 6] =
-        [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+    const HOLE_PAIRS: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
     const BOARD_TRIPLES: [(usize, usize, usize); 10] = [
-        (0, 1, 2), (0, 1, 3), (0, 1, 4), (0, 2, 3), (0, 2, 4),
-        (0, 3, 4), (1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4),
+        (0, 1, 2),
+        (0, 1, 3),
+        (0, 1, 4),
+        (0, 2, 3),
+        (0, 2, 4),
+        (0, 3, 4),
+        (1, 2, 3),
+        (1, 2, 4),
+        (1, 3, 4),
+        (2, 3, 4),
     ];
     let mut best = 0u16;
     for &(i, j) in &HOLE_PAIRS {
@@ -34,12 +41,27 @@ fn naive(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
 
 fn card(rank: char, suit: char) -> usize {
     let r = match rank {
-        '2' => 0, '3' => 1, '4' => 2, '5' => 3, '6' => 4, '7' => 5, '8' => 6,
-        '9' => 7, 'T' => 8, 'J' => 9, 'Q' => 10, 'K' => 11, 'A' => 12,
+        '2' => 0,
+        '3' => 1,
+        '4' => 2,
+        '5' => 3,
+        '6' => 4,
+        '7' => 5,
+        '8' => 6,
+        '9' => 7,
+        'T' => 8,
+        'J' => 9,
+        'Q' => 10,
+        'K' => 11,
+        'A' => 12,
         _ => panic!("bad rank: {rank}"),
     };
     let s = match suit {
-        'c' => 0, 'd' => 1, 'h' => 2, 's' => 3, _ => panic!("bad suit: {suit}"),
+        'c' => 0,
+        'd' => 1,
+        'h' => 2,
+        's' => 3,
+        _ => panic!("bad suit: {suit}"),
     };
     r * 4 + s
 }

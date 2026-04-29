@@ -8,8 +8,10 @@
 //! Hold'em-high rank.
 //!
 //! This generator enumerates every valid pair of
-//!   - 4-card rank multiset over 13 ranks (`C(16, 4) = 1820`)
-//!   - 5-card rank multiset over 13 ranks (`C(17, 5) = 6188`)
+//!
+//! - 4-card rank multiset over 13 ranks (`C(16, 4) = 1820`)
+//! - 5-card rank multiset over 13 ranks (`C(17, 5) = 6188`)
+//!
 //! and for each pair runs the 60-combo enumeration through the
 //! existing Hold'em rank-only lookup (`OFFSETS + LOOKUP`), recording
 //! the maximum.
@@ -32,8 +34,7 @@ const NUM_RANKS: usize = 13;
 const NUM_HOLE: usize = 1820; // C(16, 4)
 const NUM_BOARD: usize = 6188; // C(17, 5)
 
-const HOLE_PAIRS: [(usize, usize); 6] =
-    [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+const HOLE_PAIRS: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
 
 const BOARD_TRIPLES: [(usize, usize, usize); 10] = [
     (0, 1, 2),
@@ -56,7 +57,11 @@ fn binom_table() -> [[u32; 6]; 17] {
     for a in 0..17 {
         t[a][0] = 1;
         for b in 1..6 {
-            t[a][b] = if a == 0 { 0 } else { t[a - 1][b - 1] + t[a - 1][b] };
+            t[a][b] = if a == 0 {
+                0
+            } else {
+                t[a - 1][b - 1] + t[a - 1][b]
+            };
         }
     }
     t
@@ -144,8 +149,7 @@ fn main() {
 
                                         // Per-rank deck constraint
                                         // (board ≤4 + combined ≤4).
-                                        let mut combined =
-                                            hole_count;
+                                        let mut combined = hole_count;
                                         let mut bad = false;
                                         for &r in &board {
                                             combined[r] += 1;
@@ -158,19 +162,14 @@ fn main() {
                                             continue;
                                         }
 
-                                        let b_idx =
-                                            board_index(&board, &binom);
+                                        let b_idx = board_index(&board, &binom);
 
                                         // 60-combo max via non-flush eval.
                                         let mut best: u16 = 0;
                                         for &(i, j) in &HOLE_PAIRS {
-                                            for &(a, b, c) in
-                                                &BOARD_TRIPLES
-                                            {
+                                            for &(a, b, c) in &BOARD_TRIPLES {
                                                 let r = eval_no_flush_5([
-                                                    hole[i], hole[j],
-                                                    board[a], board[b],
-                                                    board[c],
+                                                    hole[i], hole[j], board[a], board[b], board[c],
                                                 ]);
                                                 if r > best {
                                                     best = r;
@@ -178,8 +177,7 @@ fn main() {
                                             }
                                         }
 
-                                        table[h_idx * NUM_BOARD + b_idx] =
-                                            best;
+                                        table[h_idx * NUM_BOARD + b_idx] = best;
                                         filled += 1;
                                     }
                                 }
@@ -201,9 +199,5 @@ fn main() {
         buf.extend_from_slice(&v.to_le_bytes());
     }
     file.write_all(&buf).expect("write output");
-    eprintln!(
-        "wrote {} ({} bytes)",
-        path,
-        buf.len(),
-    );
+    eprintln!("wrote {} ({} bytes)", path, buf.len(),);
 }

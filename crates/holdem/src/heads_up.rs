@@ -1,3 +1,12 @@
+// `for i in 0..len { for j in (i+1)..len { ... } }` is the natural
+// shape of these card-pair enumerations; rewriting as iterator combinators
+// loses clarity for no measurable benefit.
+#![allow(clippy::needless_range_loop)]
+// `fn(&Hand, &Hand, &[usize]) -> (u32, u32, u32)` is a typed callback —
+// not a candidate for `type` aliasing because each callsite uses it in
+// signatures only and the alias would obscure the contract.
+#![allow(clippy::type_complexity)]
+
 use crate::eval::HighRule;
 use phe_core::{Hand, CARDS, NUMBER_OF_CARDS};
 use phe_holdem_assets::HEADS_UP_WIN_FREQUENCY;

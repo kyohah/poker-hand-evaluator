@@ -40,7 +40,7 @@ fn random_fixtures(seed: u64, n: usize) -> Vec<([usize; 4], [usize; 5])> {
 
 #[test]
 fn batch_matches_single_call_on_10k_random() {
-    let fixtures = random_fixtures(0xBAD_C0FFEE_BEEF, 10_000);
+    let fixtures = random_fixtures(0x0BAD_C0FF_EEDE_ADBE, 10_000);
 
     let single: Vec<u16> = fixtures
         .iter()

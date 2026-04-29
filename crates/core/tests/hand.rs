@@ -33,7 +33,11 @@ fn add_card_increases_length_and_sets_mask_bit() {
 
 #[test]
 fn add_then_remove_yields_empty() {
-    let h = Hand::new().add_card(7).add_card(13).remove_card(13).remove_card(7);
+    let h = Hand::new()
+        .add_card(7)
+        .add_card(13)
+        .remove_card(13)
+        .remove_card(7);
     assert!(h.is_empty());
     assert_eq!(h, Hand::new());
 }

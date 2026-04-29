@@ -152,6 +152,12 @@ impl Hand {
     }
 }
 
+// `mask | rhs.mask` is the correct semantics for the 52-bit card
+// presence set (cards are unique per hand, so OR == add). Clippy's
+// `suspicious_arithmetic_impl` and `suspicious_op_assign_impl` only
+// know that we used `|` inside an arithmetic trait; they don't know
+// the type-level invariant that the masks are disjoint.
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Add for Hand {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
@@ -162,6 +168,7 @@ impl Add for Hand {
     }
 }
 
+#[allow(clippy::suspicious_op_assign_impl, clippy::assign_op_pattern)]
 impl AddAssign for Hand {
     fn add_assign(&mut self, rhs: Self) {
         self.key = self.key.wrapping_add(rhs.key);
@@ -255,8 +262,8 @@ mod tests {
     #[test]
     fn test_hand_contains() {
         let hand = "Ac2d3h".parse::<Hand>().unwrap();
-        assert!(hand.contains(0));  // Ac
-        assert!(hand.contains(5));  // 2d
+        assert!(hand.contains(0)); // Ac
+        assert!(hand.contains(5)); // 2d
         assert!(hand.contains(10)); // 3h
         assert!(!hand.contains(1)); // Ad
     }

@@ -29,6 +29,7 @@ fn invalid_suit_errors() {
 }
 
 #[test]
+#[allow(non_snake_case)]
 fn ten_must_be_T_not_10() {
     let err = parse_hand("10s").unwrap_err();
     assert!(err.contains("expected rank character"), "got: {err}");

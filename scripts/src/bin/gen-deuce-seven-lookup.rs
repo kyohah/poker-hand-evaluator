@@ -85,17 +85,15 @@ fn store(
     let is_flush = key & FLUSH_MASK;
     if is_flush > 0 {
         let flush_key = (mask >> (4 * is_flush.leading_zeros())) as u16;
-        match lookup_flush.insert(flush_key as usize, val) {
-            Some(prev) => assert_eq!(prev, val, "flush collision"),
-            None => {}
+        if let Some(prev) = lookup_flush.insert(flush_key as usize, val) {
+            assert_eq!(prev, val, "flush collision")
         }
     } else {
         let rank_key = key as u32 as usize;
         let offset = OFFSETS[rank_key >> OFFSET_SHIFT] as usize;
         let hash_key = rank_key.wrapping_add(offset);
-        match lookup.insert(hash_key, val) {
-            Some(prev) => assert_eq!(prev, val, "rank collision"),
-            None => {}
+        if let Some(prev) = lookup.insert(hash_key, val) {
+            assert_eq!(prev, val, "rank collision")
         }
     }
 }

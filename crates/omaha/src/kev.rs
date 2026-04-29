@@ -100,18 +100,22 @@ pub fn eval_5cards_kev(c1: u32, c2: u32, c3: u32, c4: u32, c5: u32) -> u16 {
 /// StraightFlush; 7462 total).
 #[inline]
 pub fn kev_rank_to_packed(kev_rank: u16) -> u16 {
-    debug_assert!(kev_rank >= 1 && kev_rank <= 7462, "kev_rank out of range: {}", kev_rank);
+    debug_assert!(
+        (1..=7462).contains(&kev_rank),
+        "kev_rank out of range: {}",
+        kev_rank
+    );
     let r = 7463u16 - kev_rank; // 7462 = best, 1 = worst
     match r {
-        1..=1277 => r - 1,                           // HighCard, cat 0
-        1278..=4137 => (1u16 << 12) | (r - 1278),    // OnePair
-        4138..=4995 => (2u16 << 12) | (r - 4138),    // TwoPair
-        4996..=5853 => (3u16 << 12) | (r - 4996),    // ThreeOfAKind
-        5854..=5863 => (4u16 << 12) | (r - 5854),    // Straight
-        5864..=7140 => (5u16 << 12) | (r - 5864),    // Flush
-        7141..=7296 => (6u16 << 12) | (r - 7141),    // FullHouse
-        7297..=7452 => (7u16 << 12) | (r - 7297),    // FourOfAKind
-        7453..=7462 => (8u16 << 12) | (r - 7453),    // StraightFlush
+        1..=1277 => r - 1,                        // HighCard, cat 0
+        1278..=4137 => (1u16 << 12) | (r - 1278), // OnePair
+        4138..=4995 => (2u16 << 12) | (r - 4138), // TwoPair
+        4996..=5853 => (3u16 << 12) | (r - 4996), // ThreeOfAKind
+        5854..=5863 => (4u16 << 12) | (r - 5854), // Straight
+        5864..=7140 => (5u16 << 12) | (r - 5864), // Flush
+        7141..=7296 => (6u16 << 12) | (r - 7141), // FullHouse
+        7297..=7452 => (7u16 << 12) | (r - 7297), // FourOfAKind
+        7453..=7462 => (8u16 << 12) | (r - 7453), // StraightFlush
         _ => unreachable!(),
     }
 }
@@ -201,8 +205,11 @@ mod tests {
     fn royal_flush_is_kev_rank_1() {
         // A♠ K♠ Q♠ J♠ T♠ → highest possible Kev hand.
         let cs = [
-            KEV_CARDS[id(12, 3)], KEV_CARDS[id(11, 3)], KEV_CARDS[id(10, 3)],
-            KEV_CARDS[id(9, 3)], KEV_CARDS[id(8, 3)],
+            KEV_CARDS[id(12, 3)],
+            KEV_CARDS[id(11, 3)],
+            KEV_CARDS[id(10, 3)],
+            KEV_CARDS[id(9, 3)],
+            KEV_CARDS[id(8, 3)],
         ];
         assert_eq!(eval_5cards_kev(cs[0], cs[1], cs[2], cs[3], cs[4]), 1);
     }
@@ -211,8 +218,11 @@ mod tests {
     fn worst_hand_is_kev_rank_7462() {
         // 7♥ 5♣ 4♣ 3♣ 2♣ — 7-high, no pair, no straight, no flush.
         let cs = [
-            KEV_CARDS[id(5, 2)], KEV_CARDS[id(3, 0)], KEV_CARDS[id(2, 0)],
-            KEV_CARDS[id(1, 0)], KEV_CARDS[id(0, 0)],
+            KEV_CARDS[id(5, 2)],
+            KEV_CARDS[id(3, 0)],
+            KEV_CARDS[id(2, 0)],
+            KEV_CARDS[id(1, 0)],
+            KEV_CARDS[id(0, 0)],
         ];
         assert_eq!(eval_5cards_kev(cs[0], cs[1], cs[2], cs[3], cs[4]), 7462);
     }
@@ -221,7 +231,7 @@ mod tests {
     fn kev_rank_to_packed_endpoints() {
         // Royal SF (Kev 1) → top packed rank in cat 8.
         assert_eq!(kev_rank_to_packed(1), (8 << 12) | 9); // 10 SFs, top is idx 9
-        // Worst HighCard (Kev 7462) → bottom packed rank.
+                                                          // Worst HighCard (Kev 7462) → bottom packed rank.
         assert_eq!(kev_rank_to_packed(7462), 0);
     }
 
@@ -232,7 +242,13 @@ mod tests {
         for k in 1..=7461u16 {
             let lhs = kev_rank_to_packed(k);
             let rhs = kev_rank_to_packed(k + 1);
-            assert!(lhs > rhs, "non-monotone at k={}: lhs={}, rhs={}", k, lhs, rhs);
+            assert!(
+                lhs > rhs,
+                "non-monotone at k={}: lhs={}, rhs={}",
+                k,
+                lhs,
+                rhs
+            );
         }
     }
 
@@ -240,8 +256,11 @@ mod tests {
     fn straight_flush_lands_in_cat_8() {
         // 9♥ 8♥ 7♥ 6♥ 5♥
         let cs = [
-            KEV_CARDS[id(7, 2)], KEV_CARDS[id(6, 2)], KEV_CARDS[id(5, 2)],
-            KEV_CARDS[id(4, 2)], KEV_CARDS[id(3, 2)],
+            KEV_CARDS[id(7, 2)],
+            KEV_CARDS[id(6, 2)],
+            KEV_CARDS[id(5, 2)],
+            KEV_CARDS[id(4, 2)],
+            KEV_CARDS[id(3, 2)],
         ];
         let kev = eval_5cards_kev(cs[0], cs[1], cs[2], cs[3], cs[4]);
         let packed = kev_rank_to_packed(kev);
@@ -252,8 +271,11 @@ mod tests {
     fn quads_lands_in_cat_7() {
         // A♣ A♦ A♥ A♠ K♣
         let cs = [
-            KEV_CARDS[id(12, 0)], KEV_CARDS[id(12, 1)], KEV_CARDS[id(12, 2)],
-            KEV_CARDS[id(12, 3)], KEV_CARDS[id(11, 0)],
+            KEV_CARDS[id(12, 0)],
+            KEV_CARDS[id(12, 1)],
+            KEV_CARDS[id(12, 2)],
+            KEV_CARDS[id(12, 3)],
+            KEV_CARDS[id(11, 0)],
         ];
         let kev = eval_5cards_kev(cs[0], cs[1], cs[2], cs[3], cs[4]);
         assert_eq!(kev_rank_to_packed(kev) >> 12, 7);
@@ -263,8 +285,11 @@ mod tests {
     fn full_house_lands_in_cat_6() {
         // 8♣ 8♦ 8♥ 5♣ 5♦
         let cs = [
-            KEV_CARDS[id(6, 0)], KEV_CARDS[id(6, 1)], KEV_CARDS[id(6, 2)],
-            KEV_CARDS[id(3, 0)], KEV_CARDS[id(3, 1)],
+            KEV_CARDS[id(6, 0)],
+            KEV_CARDS[id(6, 1)],
+            KEV_CARDS[id(6, 2)],
+            KEV_CARDS[id(3, 0)],
+            KEV_CARDS[id(3, 1)],
         ];
         let kev = eval_5cards_kev(cs[0], cs[1], cs[2], cs[3], cs[4]);
         assert_eq!(kev_rank_to_packed(kev) >> 12, 6);
@@ -274,8 +299,11 @@ mod tests {
     fn flush_lands_in_cat_5() {
         // A♣ Q♣ 9♣ 5♣ 2♣ (no straight, all clubs)
         let cs = [
-            KEV_CARDS[id(12, 0)], KEV_CARDS[id(10, 0)], KEV_CARDS[id(7, 0)],
-            KEV_CARDS[id(3, 0)], KEV_CARDS[id(0, 0)],
+            KEV_CARDS[id(12, 0)],
+            KEV_CARDS[id(10, 0)],
+            KEV_CARDS[id(7, 0)],
+            KEV_CARDS[id(3, 0)],
+            KEV_CARDS[id(0, 0)],
         ];
         let kev = eval_5cards_kev(cs[0], cs[1], cs[2], cs[3], cs[4]);
         assert_eq!(kev_rank_to_packed(kev) >> 12, 5);

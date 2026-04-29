@@ -17,7 +17,11 @@ fn rank_branch_uses_perfect_hash_offset() {
     // Cards 0,4,8,12,16 are 2c,3c,4c,5c,6c → all clubs → THIS IS a flush, skip.
     // Use 0,5,10,15,20 → 2c,3d,4h,5s,6c → mixed suits.
     let h = Hand::from_slice(&[0, 5, 10, 15, 20]);
-    assert_eq!(h.get_key() & FLUSH_MASK, 0, "this fixture must not be flagged as flush");
+    assert_eq!(
+        h.get_key() & FLUSH_MASK,
+        0,
+        "this fixture must not be flagged as flush"
+    );
 
     let rank_key = h.get_key() as u32 as usize;
     let bucket = rank_key >> OFFSET_SHIFT;

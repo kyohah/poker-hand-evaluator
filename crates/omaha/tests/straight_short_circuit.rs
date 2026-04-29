@@ -12,7 +12,10 @@ impl Rng {
         Self(seed)
     }
     fn next_u64(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.0
     }
 }
@@ -46,12 +49,27 @@ fn cards(s: &str) -> Vec<usize> {
     while let Some(r) = chars.next() {
         let suit = chars.next().unwrap();
         let rank = match r.to_ascii_uppercase() {
-            '2' => 0, '3' => 1, '4' => 2, '5' => 3, '6' => 4, '7' => 5, '8' => 6,
-            '9' => 7, 'T' => 8, 'J' => 9, 'Q' => 10, 'K' => 11, 'A' => 12,
+            '2' => 0,
+            '3' => 1,
+            '4' => 2,
+            '5' => 3,
+            '6' => 4,
+            '7' => 5,
+            '8' => 6,
+            '9' => 7,
+            'T' => 8,
+            'J' => 9,
+            'Q' => 10,
+            'K' => 11,
+            'A' => 12,
             _ => panic!(),
         };
         let s = match suit.to_ascii_lowercase() {
-            'c' => 0, 'd' => 1, 'h' => 2, 's' => 3, _ => panic!(),
+            'c' => 0,
+            'd' => 1,
+            'h' => 2,
+            's' => 3,
+            _ => panic!(),
         };
         out.push(rank * 4 + s);
     }

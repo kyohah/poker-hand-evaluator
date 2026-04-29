@@ -16,12 +16,27 @@ use phe_omaha::{board_has_no_pair, flush_suit, OmahaHighRule};
 
 fn card(rank: char, suit: char) -> usize {
     let r = match rank {
-        '2' => 0, '3' => 1, '4' => 2, '5' => 3, '6' => 4, '7' => 5, '8' => 6,
-        '9' => 7, 'T' => 8, 'J' => 9, 'Q' => 10, 'K' => 11, 'A' => 12,
+        '2' => 0,
+        '3' => 1,
+        '4' => 2,
+        '5' => 3,
+        '6' => 4,
+        '7' => 5,
+        '8' => 6,
+        '9' => 7,
+        'T' => 8,
+        'J' => 9,
+        'Q' => 10,
+        'K' => 11,
+        'A' => 12,
         _ => panic!(),
     };
     let s = match suit {
-        'c' => 0, 'd' => 1, 'h' => 2, 's' => 3, _ => panic!(),
+        'c' => 0,
+        'd' => 1,
+        'h' => 2,
+        's' => 3,
+        _ => panic!(),
     };
     r * 4 + s
 }
@@ -108,20 +123,24 @@ fn flush_suit_none_when_only_one_hole_card_matches_3_suited_board() {
 fn naive(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
     use phe_core::Hand;
     use phe_holdem::HighRule;
-    const HOLE_PAIRS: [(usize, usize); 6] =
-        [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+    const HOLE_PAIRS: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
     const BOARD_TRIPLES: [(usize, usize, usize); 10] = [
-        (0, 1, 2), (0, 1, 3), (0, 1, 4), (0, 2, 3), (0, 2, 4),
-        (0, 3, 4), (1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4),
+        (0, 1, 2),
+        (0, 1, 3),
+        (0, 1, 4),
+        (0, 2, 3),
+        (0, 2, 4),
+        (0, 3, 4),
+        (1, 2, 3),
+        (1, 2, 4),
+        (1, 3, 4),
+        (2, 3, 4),
     ];
     let mut best = 0u16;
     for &(i, j) in &HOLE_PAIRS {
         let hp = Hand::new().add_card(hole[i]).add_card(hole[j]);
         for &(a, b, c) in &BOARD_TRIPLES {
-            let h = hp
-                .add_card(board[a])
-                .add_card(board[b])
-                .add_card(board[c]);
+            let h = hp.add_card(board[a]).add_card(board[b]).add_card(board[c]);
             best = best.max(HighRule::evaluate(&h));
         }
     }
@@ -181,9 +200,9 @@ fn flush_eligible_but_board_paired_uses_full_eval() {
     // Board has a pair → can't use flush-dominates; FH possible.
     let hole = parse_4("AhKhQhJh"); // 4 hearts
     let board = parse_5("AsAdAcKsKc"); // pair / trips on board
-    // Quads of aces from board (3) + hole (1) is impossible (2 hole used for FH).
-    // Best: hole pair (Ah, Kh) + board (As, Kc, ...) → AAKKK = FH if combinable.
-    // Actually hole (Ah, Kh) + board (As, Ad, Ks) = AAAKK = FH. Good.
+                                       // Quads of aces from board (3) + hole (1) is impossible (2 hole used for FH).
+                                       // Best: hole pair (Ah, Kh) + board (As, Kc, ...) → AAKKK = FH if combinable.
+                                       // Actually hole (Ah, Kh) + board (As, Ad, Ks) = AAAKK = FH. Good.
     let r = OmahaHighRule::evaluate(&hole, &board);
     assert_eq!(r, naive(&hole, &board));
 }
@@ -316,5 +335,8 @@ fn flush_dominates_random_sweep_matches_naive() {
         );
         checked += 1;
     }
-    assert!(checked >= 1_000, "too few flush-dominates samples drawn ({checked})");
+    assert!(
+        checked >= 1_000,
+        "too few flush-dominates samples drawn ({checked})"
+    );
 }

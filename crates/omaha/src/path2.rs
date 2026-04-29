@@ -93,9 +93,7 @@ pub(crate) fn evaluate(hole: &[usize; 4], board: &[usize; 5], suit: u8) -> u16 {
     debug_assert!(hole_mask.count_ones() >= 2 && board_mask.count_ones() >= 3);
 
     for &window in &SF_WINDOWS_DESC {
-        if (hole_mask & window).count_ones() >= 2
-            && (board_mask & window).count_ones() >= 3
-        {
+        if (hole_mask & window).count_ones() >= 2 && (board_mask & window).count_ones() >= 3 {
             return unsafe { *LOOKUP_FLUSH.get_unchecked(window as usize) };
         }
     }

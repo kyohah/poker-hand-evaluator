@@ -8,6 +8,8 @@
 //! by looking at the `path_breakdown` reporter, which prints how many
 //! fixtures hit the rank-only fast path vs the full Hold'em-eval path.
 
+#![allow(clippy::needless_range_loop)]
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use phe_core::Hand;
 use phe_holdem::HighRule;
@@ -20,7 +22,7 @@ use std::sync::OnceLock;
 
 const NUM_FIXTURES: usize = 10_000;
 const SEED: u64 = 0xDEAD_BEEF_CAFE_BABE;
-const SEED_STRUCTURED: u64 = 0xC0FF_EE_DEAD_BEEF;
+const SEED_STRUCTURED: u64 = 0xC0FF_EEDE_ADBE_EFC0;
 const SEED_NO_STRAIGHT: u64 = 0xBADD_CAFE_F00D_F00D;
 
 /// 10K random (hole, board) fixtures, generated **exactly once** for
@@ -124,10 +126,7 @@ fn generate_structured_no_straight_fixtures() -> Vec<([usize; 4], [usize; 5])> {
         }
         let hole = [deck[0], deck[1], deck[2], deck[3]];
         let board = [deck[4], deck[5], deck[6], deck[7], deck[8]];
-        if board_has_no_pair(&board)
-            && board_no_straight(&board)
-            && flush_possible(&hole, &board)
-        {
+        if board_has_no_pair(&board) && board_no_straight(&board) && flush_possible(&hole, &board) {
             fixtures.push((hole, board));
         }
     }
@@ -139,20 +138,24 @@ fn generate_structured_no_straight_fixtures() -> Vec<([usize; 4], [usize; 5])> {
 /// partial caching.
 #[inline]
 fn naive_eval(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
-    const HOLE_PAIRS: [(usize, usize); 6] =
-        [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+    const HOLE_PAIRS: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
     const BOARD_TRIPLES: [(usize, usize, usize); 10] = [
-        (0, 1, 2), (0, 1, 3), (0, 1, 4), (0, 2, 3), (0, 2, 4),
-        (0, 3, 4), (1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4),
+        (0, 1, 2),
+        (0, 1, 3),
+        (0, 1, 4),
+        (0, 2, 3),
+        (0, 2, 4),
+        (0, 3, 4),
+        (1, 2, 3),
+        (1, 2, 4),
+        (1, 3, 4),
+        (2, 3, 4),
     ];
     let mut best = 0u16;
     for &(i, j) in &HOLE_PAIRS {
         let hp = Hand::new().add_card(hole[i]).add_card(hole[j]);
         for &(a, b, c) in &BOARD_TRIPLES {
-            let h = hp
-                .add_card(board[a])
-                .add_card(board[b])
-                .add_card(board[c]);
+            let h = hp.add_card(board[a]).add_card(board[b]).add_card(board[c]);
             best = best.max(HighRule::evaluate(&h));
         }
     }
@@ -171,7 +174,10 @@ fn bench_random_10k(c: &mut Criterion) {
         let k = flush_possible(h, b) as usize;
         counts[i][j][k] += 1;
     }
-    eprintln!("random fixtures structural breakdown ({} total):", NUM_FIXTURES);
+    eprintln!(
+        "random fixtures structural breakdown ({} total):",
+        NUM_FIXTURES
+    );
     for i in 0..2 {
         for j in 0..2 {
             for k in 0..2 {
@@ -304,11 +310,19 @@ fn bench_random_10k(c: &mut Criterion) {
         let _ = (prod, ssc);
         let mut hole_s = [0u8; 4];
         let mut board_s = [0u8; 4];
-        for &c in hole { hole_s[c & 3] += 1; }
-        for &c in board { board_s[c & 3] += 1; }
+        for &c in hole {
+            hole_s[c & 3] += 1;
+        }
+        for &c in board {
+            board_s[c & 3] += 1;
+        }
         let flush_eligible = (0..4).any(|s| hole_s[s] >= 2 && board_s[s] >= 3);
-        if flush_eligible { continue; }
-        if !board_has_no_pair(board) { continue; }
+        if flush_eligible {
+            continue;
+        }
+        if !board_has_no_pair(board) {
+            continue;
+        }
         if (prod >> 12) == 4 {
             hits += 1;
         }

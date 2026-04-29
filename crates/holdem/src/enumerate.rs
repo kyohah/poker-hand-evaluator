@@ -1,3 +1,10 @@
+// Each `enumerate_N` function below uses nested `for i in 0..len { for
+// j in (i+1)..len { ... } }` indexing where the index is also the
+// loop bound for the next inner level. Rewriting as iterator combinators
+// (`alive.iter().enumerate().skip(i+1)`) hurts both readability and the
+// generated code shape, so we keep the index-based form.
+#![allow(clippy::needless_range_loop)]
+
 use crate::category::{get_hand_category, HandCategory};
 use crate::eval::HighRule;
 use phe_core::{Hand, CARDS, NUMBER_OF_CARDS};

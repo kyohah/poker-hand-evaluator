@@ -54,9 +54,7 @@ const SF_WINDOWS_DESC: [u16; 10] = [
 fn sf_or_flush(hole_mask: u16, board_mask: u16) -> u16 {
     debug_assert!(hole_mask.count_ones() >= 2 && board_mask.count_ones() >= 3);
     for &window in &SF_WINDOWS_DESC {
-        if (hole_mask & window).count_ones() >= 2
-            && (board_mask & window).count_ones() >= 3
-        {
+        if (hole_mask & window).count_ones() >= 2 && (board_mask & window).count_ones() >= 3 {
             return unsafe { *LOOKUP_FLUSH.get_unchecked(window as usize) };
         }
     }
@@ -125,11 +123,21 @@ fn build_masks(h: &[u8; 13], b: &[u8; 13]) -> RankMasks {
     for r in 0..13 {
         let hr = h[r];
         let br = b[r];
-        if hr >= 1 { m.h_ge_1 |= 1u16 << r; }
-        if hr >= 2 { m.h_ge_2 |= 1u16 << r; }
-        if br >= 1 { m.b_ge_1 |= 1u16 << r; }
-        if br >= 2 { m.b_ge_2 |= 1u16 << r; }
-        if br >= 3 { m.b_ge_3 |= 1u16 << r; }
+        if hr >= 1 {
+            m.h_ge_1 |= 1u16 << r;
+        }
+        if hr >= 2 {
+            m.h_ge_2 |= 1u16 << r;
+        }
+        if br >= 1 {
+            m.b_ge_1 |= 1u16 << r;
+        }
+        if br >= 2 {
+            m.b_ge_2 |= 1u16 << r;
+        }
+        if br >= 3 {
+            m.b_ge_3 |= 1u16 << r;
+        }
     }
     m
 }
@@ -166,11 +174,10 @@ fn check_quads(m: RankMasks) -> Option<u16> {
     if cand_b & r_bit != 0 {
         kicker_mask |= m.b_ge_1 & !r_bit;
     }
-    let kicker = highest_bit(kicker_mask)
-        .expect("kicker mask must be non-empty when quads is reachable");
+    let kicker =
+        highest_bit(kicker_mask).expect("kicker mask must be non-empty when quads is reachable");
 
-    let rank_key =
-        4 * RANK_BASES[r] as u32 + RANK_BASES[kicker] as u32;
+    let rank_key = 4 * RANK_BASES[r] as u32 + RANK_BASES[kicker] as u32;
     Some(evaluate_rank_only_from_key(rank_key))
 }
 
@@ -180,12 +187,12 @@ fn check_quads(m: RankMasks) -> Option<u16> {
 /// FH has trips of `R1` + pair of `R2` (R1 ≠ R2) using exactly 2 hole
 /// + 3 board. Three composition cases:
 ///
-///   I.   `(0, 3, 2, 0)`: board trips R1, hole pocket pair R2.
-///        Needs `b[R1] ≥ 3` AND `h[R2] ≥ 2`.
-///   II.  `(1, 2, 1, 1)`: hole has 1×R1, 1×R2; board has 2×R1, ≥1×R2.
-///        Needs `h[R1] ≥ 1 ∧ b[R1] ≥ 2 ∧ h[R2] ≥ 1 ∧ b[R2] ≥ 1`.
-///   III. `(2, 1, 0, 2)`: hole pocket pair R1; board has ≥1×R1, ≥2×R2.
-///        Needs `h[R1] ≥ 2 ∧ b[R1] ≥ 1 ∧ b[R2] ≥ 2`.
+/// I. `(0, 3, 2, 0)`: board trips R1, hole pocket pair R2.
+///    Needs `b[R1] ≥ 3` AND `h[R2] ≥ 2`.
+/// II. `(1, 2, 1, 1)`: hole has 1×R1, 1×R2; board has 2×R1, ≥1×R2.
+///    Needs `h[R1] ≥ 1 ∧ b[R1] ≥ 2 ∧ h[R2] ≥ 1 ∧ b[R2] ≥ 1`.
+/// III. `(2, 1, 0, 2)`: hole pocket pair R1; board has ≥1×R1, ≥2×R2.
+///    Needs `h[R1] ≥ 2 ∧ b[R1] ≥ 1 ∧ b[R2] ≥ 2`.
 ///
 /// Best FH = max `R1`, then max `R2` (Hold'em FH is ranked by trips
 /// then pair).
@@ -219,8 +226,7 @@ fn check_fh(m: RankMasks) -> Option<u16> {
     }
     let r2 = highest_bit(r2_mask)?;
 
-    let rank_key =
-        3 * RANK_BASES[r1] as u32 + 2 * RANK_BASES[r2] as u32;
+    let rank_key = 3 * RANK_BASES[r1] as u32 + 2 * RANK_BASES[r2] as u32;
     Some(evaluate_rank_only_from_key(rank_key))
 }
 

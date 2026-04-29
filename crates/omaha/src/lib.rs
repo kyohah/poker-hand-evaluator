@@ -38,8 +38,7 @@ mod path3;
 
 pub use kev::{
     eval_5cards_kev, eval_5cards_kev_v0, eval_5cards_kev_v1_precomp,
-    eval_5cards_kev_v2_always_flush, eval_5cards_kev_v3_always_hash, kev_rank_to_packed,
-    KEV_CARDS,
+    eval_5cards_kev_v2_always_flush, eval_5cards_kev_v3_always_hash, kev_rank_to_packed, KEV_CARDS,
 };
 
 /// Omaha high rule.
@@ -51,14 +50,21 @@ pub struct OmahaHighRule;
 
 /// Indices of the 6 ways to choose 2 of 4 hole cards. Shared by
 /// `path3` and `evaluate_kev`.
-pub(crate) const HOLE_PAIRS: [(usize, usize); 6] =
-    [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+pub(crate) const HOLE_PAIRS: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
 
 /// Indices of the 10 ways to choose 3 of 5 board cards. Shared by
 /// `path3` and `evaluate_kev`.
 pub(crate) const BOARD_TRIPLES: [(usize, usize, usize); 10] = [
-    (0, 1, 2), (0, 1, 3), (0, 1, 4), (0, 2, 3), (0, 2, 4),
-    (0, 3, 4), (1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4),
+    (0, 1, 2),
+    (0, 1, 3),
+    (0, 1, 4),
+    (0, 2, 3),
+    (0, 2, 4),
+    (0, 3, 4),
+    (1, 2, 3),
+    (1, 2, 4),
+    (1, 3, 4),
+    (2, 3, 4),
 ];
 
 /// Returns the suit (0..3) with both ≥2 hole and ≥3 board cards (the
@@ -170,7 +176,11 @@ pub fn upper_bound_category(
     if board_has_pair {
         return 6;
     }
-    if no_straight { 2 } else { 4 }
+    if no_straight {
+        2
+    } else {
+        4
+    }
 }
 
 /// **Experimental v1**: Cactus-Kev with pre-summed OR/AND/prime partials.
@@ -181,11 +191,17 @@ pub fn upper_bound_category(
 /// the Cactus-Kev kernel for the perf investigation.
 pub fn evaluate_kev_v1(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
     let kh: [u32; 4] = [
-        KEV_CARDS[hole[0]], KEV_CARDS[hole[1]], KEV_CARDS[hole[2]], KEV_CARDS[hole[3]],
+        KEV_CARDS[hole[0]],
+        KEV_CARDS[hole[1]],
+        KEV_CARDS[hole[2]],
+        KEV_CARDS[hole[3]],
     ];
     let kb: [u32; 5] = [
-        KEV_CARDS[board[0]], KEV_CARDS[board[1]], KEV_CARDS[board[2]],
-        KEV_CARDS[board[3]], KEV_CARDS[board[4]],
+        KEV_CARDS[board[0]],
+        KEV_CARDS[board[1]],
+        KEV_CARDS[board[2]],
+        KEV_CARDS[board[3]],
+        KEV_CARDS[board[4]],
     ];
 
     // 6 hole-pair partials
@@ -213,8 +229,12 @@ pub fn evaluate_kev_v1(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
     for pi in 0..6 {
         for ti in 0..10 {
             let r = eval_5cards_kev_v1_precomp(
-                pair_or[pi], pair_and[pi], pair_prime[pi],
-                tri_or[ti], tri_and[ti], tri_prime[ti],
+                pair_or[pi],
+                pair_and[pi],
+                pair_prime[pi],
+                tri_or[ti],
+                tri_and[ti],
+                tri_prime[ti],
             );
             if r < best_kev {
                 best_kev = r;
@@ -230,18 +250,27 @@ pub fn evaluate_kev_v1(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
 /// Cactus-Kev path's contribution to total time.
 pub fn evaluate_kev_v2_always_flush(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
     let kh: [u32; 4] = [
-        KEV_CARDS[hole[0]], KEV_CARDS[hole[1]], KEV_CARDS[hole[2]], KEV_CARDS[hole[3]],
+        KEV_CARDS[hole[0]],
+        KEV_CARDS[hole[1]],
+        KEV_CARDS[hole[2]],
+        KEV_CARDS[hole[3]],
     ];
     let kb: [u32; 5] = [
-        KEV_CARDS[board[0]], KEV_CARDS[board[1]], KEV_CARDS[board[2]],
-        KEV_CARDS[board[3]], KEV_CARDS[board[4]],
+        KEV_CARDS[board[0]],
+        KEV_CARDS[board[1]],
+        KEV_CARDS[board[2]],
+        KEV_CARDS[board[3]],
+        KEV_CARDS[board[4]],
     ];
     let mut best_kev: u16 = u16::MAX;
     for &(i, j) in &HOLE_PAIRS {
-        let ki = kh[i]; let kj = kh[j];
+        let ki = kh[i];
+        let kj = kh[j];
         for &(a, b, c) in &BOARD_TRIPLES {
             let r = eval_5cards_kev_v2_always_flush(ki, kj, kb[a], kb[b], kb[c]);
-            if r < best_kev { best_kev = r; }
+            if r < best_kev {
+                best_kev = r;
+            }
         }
     }
     best_kev
@@ -253,18 +282,27 @@ pub fn evaluate_kev_v2_always_flush(hole: &[usize; 4], board: &[usize; 5]) -> u1
 /// imperfect-hash branch specifically.
 pub fn evaluate_kev_v3_always_hash(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
     let kh: [u32; 4] = [
-        KEV_CARDS[hole[0]], KEV_CARDS[hole[1]], KEV_CARDS[hole[2]], KEV_CARDS[hole[3]],
+        KEV_CARDS[hole[0]],
+        KEV_CARDS[hole[1]],
+        KEV_CARDS[hole[2]],
+        KEV_CARDS[hole[3]],
     ];
     let kb: [u32; 5] = [
-        KEV_CARDS[board[0]], KEV_CARDS[board[1]], KEV_CARDS[board[2]],
-        KEV_CARDS[board[3]], KEV_CARDS[board[4]],
+        KEV_CARDS[board[0]],
+        KEV_CARDS[board[1]],
+        KEV_CARDS[board[2]],
+        KEV_CARDS[board[3]],
+        KEV_CARDS[board[4]],
     ];
     let mut best_kev: u16 = u16::MAX;
     for &(i, j) in &HOLE_PAIRS {
-        let ki = kh[i]; let kj = kh[j];
+        let ki = kh[i];
+        let kj = kh[j];
         for &(a, b, c) in &BOARD_TRIPLES {
             let r = eval_5cards_kev_v3_always_hash(ki, kj, kb[a], kb[b], kb[c]);
-            if r < best_kev { best_kev = r; }
+            if r < best_kev {
+                best_kev = r;
+            }
         }
     }
     best_kev
@@ -378,9 +416,7 @@ fn quick_max_straight_top(hole_mask: u16, board_mask: u16) -> Option<u8> {
             && (hole_mask & wheel).count_ones() >= 2
         {
             let need_from_hole = wheel & !board_mask;
-            if need_from_hole & hole_mask == need_from_hole
-                && need_from_hole.count_ones() <= 2
-            {
+            if need_from_hole & hole_mask == need_from_hole && need_from_hole.count_ones() <= 2 {
                 best_top = Some(3); // wheel = 5-high straight
             }
         }
@@ -402,12 +438,17 @@ fn quick_max_straight_top(hole_mask: u16, board_mask: u16) -> Option<u8> {
 /// [`kev::kev_rank_to_packed`].
 pub fn evaluate_kev(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
     let kh: [u32; 4] = [
-        KEV_CARDS[hole[0]], KEV_CARDS[hole[1]],
-        KEV_CARDS[hole[2]], KEV_CARDS[hole[3]],
+        KEV_CARDS[hole[0]],
+        KEV_CARDS[hole[1]],
+        KEV_CARDS[hole[2]],
+        KEV_CARDS[hole[3]],
     ];
     let kb: [u32; 5] = [
-        KEV_CARDS[board[0]], KEV_CARDS[board[1]],
-        KEV_CARDS[board[2]], KEV_CARDS[board[3]], KEV_CARDS[board[4]],
+        KEV_CARDS[board[0]],
+        KEV_CARDS[board[1]],
+        KEV_CARDS[board[2]],
+        KEV_CARDS[board[3]],
+        KEV_CARDS[board[4]],
     ];
 
     let mut best_kev: u16 = u16::MAX;
@@ -461,10 +502,7 @@ impl OmahaHighRule {
     /// prefetch trick.
     ///
     /// `inputs.len()` and `out.len()` must match.
-    pub fn evaluate_batch(
-        inputs: &[([usize; 4], [usize; 5])],
-        out: &mut [u16],
-    ) {
+    pub fn evaluate_batch(inputs: &[([usize; 4], [usize; 5])], out: &mut [u16]) {
         assert_eq!(inputs.len(), out.len());
         const PREFETCH_AHEAD: usize = 4;
 

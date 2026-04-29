@@ -9,6 +9,8 @@
 //! lower bits encode within-category tiebreaks. Higher = stronger as a
 //! Hold'em high hand.
 
+#![allow(clippy::needless_range_loop)]
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WheelMode {
     /// `A-2-3-4-5` is a straight, and `A-2-3-4-5` of one suit is a
@@ -117,11 +119,7 @@ fn best_subset(hand: &[usize], mode: WheelMode, compare: fn(u32, u32) -> u32) ->
     let n = hand.len();
     let mut acc: Option<u32> = None;
     let mut sub = [0usize; 5];
-    let combos: &[[usize; 5]] = if n == 6 {
-        &SUBSETS_6
-    } else {
-        &SUBSETS_7
-    };
+    let combos: &[[usize; 5]] = if n == 6 { &SUBSETS_6 } else { &SUBSETS_7 };
     for idxs in combos {
         for (s, &i) in sub.iter_mut().zip(idxs.iter()) {
             *s = hand[i];

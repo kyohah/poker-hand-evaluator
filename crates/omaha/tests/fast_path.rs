@@ -17,12 +17,26 @@ fn cards_in_order(s: &str) -> Vec<usize> {
     while let Some(r) = chars.next() {
         let suit = chars.next().unwrap();
         let rank = match r.to_ascii_uppercase() {
-            '2' => 0, '3' => 1, '4' => 2, '5' => 3, '6' => 4, '7' => 5, '8' => 6,
-            '9' => 7, 'T' => 8, 'J' => 9, 'Q' => 10, 'K' => 11, 'A' => 12,
+            '2' => 0,
+            '3' => 1,
+            '4' => 2,
+            '5' => 3,
+            '6' => 4,
+            '7' => 5,
+            '8' => 6,
+            '9' => 7,
+            'T' => 8,
+            'J' => 9,
+            'Q' => 10,
+            'K' => 11,
+            'A' => 12,
             _ => panic!("bad rank {}", r),
         };
         let s = match suit.to_ascii_lowercase() {
-            'c' => 0, 'd' => 1, 'h' => 2, 's' => 3,
+            'c' => 0,
+            'd' => 1,
+            'h' => 2,
+            's' => 3,
             _ => panic!("bad suit {}", suit),
         };
         out.push(rank * 4 + s);
@@ -122,7 +136,8 @@ fn user_pattern_two_hearts_in_hole_yields_flush_or_better() {
                 | HandCategory::FourOfAKind
                 | HandCategory::FullHouse
         ),
-        "expected at least Flush, got {:?}", cat
+        "expected at least Flush, got {:?}",
+        cat
     );
 }
 
@@ -137,7 +152,8 @@ fn user_pattern_no_pairs_no_quads_or_full_house() {
     let cat = get_hand_category(r);
     assert!(
         cat != HandCategory::FourOfAKind && cat != HandCategory::FullHouse,
-        "structural impossibility violated: got {:?}", cat
+        "structural impossibility violated: got {:?}",
+        cat
     );
 }
 

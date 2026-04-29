@@ -19,11 +19,7 @@ fn cards(s: &str) -> Vec<usize> {
     // Re-implement manually to keep order.
     let mut chars = s.chars();
     let mut ordered = Vec::new();
-    loop {
-        let r = match chars.next() {
-            Some(c) => c,
-            None => break,
-        };
+    while let Some(r) = chars.next() {
         let s = chars.next().unwrap();
         let rank = match r.to_ascii_uppercase() {
             '2' => 0,
