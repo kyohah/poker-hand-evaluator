@@ -7,8 +7,8 @@
 //!   3. HiLoRule composes high and low rules into a tuple Strength.
 
 use poker_hand_evaluator::{
-    AceFiveLowRule, DeuceSevenLowRule, EightLowQualifiedRule, HandRule, HiLoRule, HighRule,
-    OmahaHighRule,
+    AceFiveLowRule, BadugiRule, DeuceSevenLowRule, EightLowQualifiedRule, HandRule, HiLoRule,
+    HighRule, OmahaHighRule,
 };
 
 // Hold'em-style card ids: card = rank*4 + suit; rank 0=2, 12=A; suit 0=c..3=s.
@@ -131,6 +131,28 @@ fn hi_lo_rule_returns_tuple_strength() {
     let _ = hi;
     // Lo: A-2-3-4-8 qualifies.
     assert!(lo.is_some());
+}
+
+#[test]
+fn badugi_rule_via_facade_uses_holdem_encoding() {
+    // Wheel A-2-3-4 of four different suits = 4-badugi nuts.
+    let cards = [
+        ACE_C,        // Ac
+        TWOS,         // 2c -> wait, TWOS is 2c (rank 0, suit 0). For wheel we want 4 different suits.
+        // Use Ac, 2d, 3h, 4s
+        0 * 4 + 1,    // 2d
+        1 * 4 + 2,    // 3h
+        2 * 4 + 3,    // 4s
+    ];
+    // The first slot above is misnamed. Build the right 4-card hand:
+    let cards = [12 * 4 + 0, 0 * 4 + 1, 1 * 4 + 2, 2 * 4 + 3]; // Ac 2d 3h 4s
+    let s = BadugiRule.evaluate(&cards);
+    assert_eq!(s.count(), 4);
+
+    // Worse 4-badugi: Ac 2d 3h 5s
+    let worse = [12 * 4 + 0, 0 * 4 + 1, 1 * 4 + 2, 3 * 4 + 3];
+    let s2 = BadugiRule.evaluate(&worse);
+    assert!(s > s2);
 }
 
 #[test]

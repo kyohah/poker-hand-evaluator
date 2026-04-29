@@ -35,6 +35,8 @@ pub use phe_eight_low as eight_low;
 pub use phe_deuce_seven as deuce_seven;
 #[cfg(feature = "omaha")]
 pub use phe_omaha as omaha;
+#[cfg(feature = "badugi")]
+pub use phe_badugi as badugi;
 
 /// A rule that can score a poker hand.
 ///
@@ -153,6 +155,24 @@ impl HandRule for OmahaHighRule {
             cards[8] as usize,
         ];
         phe_omaha::OmahaHighRule::evaluate(&hole, &board)
+    }
+}
+
+#[cfg(feature = "badugi")]
+pub use phe_badugi::{BadugiRule, BadugiStrength};
+
+#[cfg(feature = "badugi")]
+impl HandRule for BadugiRule {
+    type Strength = BadugiStrength;
+
+    fn evaluate(&self, cards: &[u8]) -> BadugiStrength {
+        assert_eq!(
+            cards.len(),
+            4,
+            "BadugiRule expects 4 cards, got {}",
+            cards.len()
+        );
+        phe_badugi::BadugiRule::evaluate([cards[0], cards[1], cards[2], cards[3]])
     }
 }
 

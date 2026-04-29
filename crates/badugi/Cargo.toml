@@ -1,0 +1,10 @@
+[package]
+name = "phe-badugi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Badugi 4-card lowball hand evaluator"
+
+[dependencies]
