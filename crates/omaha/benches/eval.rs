@@ -267,6 +267,17 @@ fn bench_random_10k(c: &mut Criterion) {
         })
     });
 
+    // Batch API + path-1 prefetch: overlaps the 22 MB no-flush
+    // table's memory latency with subsequent iterations' compute.
+    group.bench_function("optimized_batch", |b| {
+        let mut out = vec![0u16; f.len()];
+        b.iter(|| {
+            OmahaHighRule::evaluate_batch(f, &mut out);
+            let acc: u32 = out.iter().map(|&v| v as u32).sum();
+            black_box(acc)
+        })
+    });
+
     // User-proposed straight-short-circuit: precomputed structural
     // detection of "Straight is the max" hands; falls back to
     // production eval otherwise.

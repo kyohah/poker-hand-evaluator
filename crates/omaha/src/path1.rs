@@ -110,9 +110,41 @@ fn board_index(board: &[usize; 5]) -> usize {
         + BINOM[r[4] + 4][5]) as usize
 }
 
+/// Computes the flat path-1 lookup key
+/// (`hole_idx * NUM_BOARD + board_idx`) for a given hand. Exposed so
+/// the batch eval API can pre-compute keys in a separate pass and
+/// then drive the actual table reads with prefetch hints.
+#[inline]
+pub(crate) fn key(hole: &[usize; 4], board: &[usize; 5]) -> usize {
+    hole_index(hole) * NUM_BOARD + board_index(board)
+}
+
+/// Reads the path-1 table at a previously-computed key.
+#[inline]
+pub(crate) fn lookup_at(key: usize) -> u16 {
+    unsafe { *noflush_lookup().get_unchecked(key) }
+}
+
+/// Issues a `_mm_prefetch` (T0) hint for `noflush_lookup()[key]`.
+/// Best-effort — if the CPU is bandwidth-saturated the hint may be
+/// dropped. No-op on non-x86_64.
+#[inline]
+#[cfg(target_arch = "x86_64")]
+pub(crate) fn prefetch_at(key: usize) {
+    use core::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
+    let ptr = noflush_lookup().as_ptr();
+    unsafe {
+        _mm_prefetch::<{ _MM_HINT_T0 }>(ptr.add(key) as *const i8);
+    }
+}
+
+#[inline]
+#[cfg(not(target_arch = "x86_64"))]
+pub(crate) fn prefetch_at(_key: usize) {}
+
 /// Path-1 entry point: one direct table access.
 #[inline]
 pub(crate) fn evaluate(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
-    let key = hole_index(hole) * NUM_BOARD + board_index(board);
-    unsafe { *noflush_lookup().get_unchecked(key) }
+    lookup_at(key(hole, board))
 }
+

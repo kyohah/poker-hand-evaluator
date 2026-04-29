@@ -439,4 +439,60 @@ impl OmahaHighRule {
             }
         }
     }
+
+    /// Batch-evaluates a slice of Omaha hands and writes the results
+    /// to `out`.
+    ///
+    /// Two-phase implementation:
+    ///   - **Phase 1** (single pass over `inputs`): dispatch each
+    ///     fixture; immediately compute path-2 / path-3 outputs;
+    ///     for path-1 fixtures, just compute the flat table key
+    ///     and stash it.
+    ///   - **Phase 2** (over the path-1 stash): issue `_mm_prefetch`
+    ///     for the entry that will be read `PREFETCH_AHEAD`
+    ///     iterations ahead, then read the current entry.
+    ///
+    /// The split lets phase 2 do the bare minimum per iteration
+    /// (one prefetch + one load) so the 22 MB no-flush table's
+    /// memory latency is overlapped with the prefetch lookahead.
+    /// In phase 1, dispatching path 2 / path 3 has small constant
+    /// cost (no big-table access) so they don't benefit from the
+    /// prefetch trick.
+    ///
+    /// `inputs.len()` and `out.len()` must match.
+    pub fn evaluate_batch(
+        inputs: &[([usize; 4], [usize; 5])],
+        out: &mut [u16],
+    ) {
+        assert_eq!(inputs.len(), out.len());
+        const PREFETCH_AHEAD: usize = 4;
+
+        // Phase 1: dispatch + collect path-1 (key, out_idx) pairs.
+        let n = inputs.len();
+        let mut path1_keys: Vec<(usize, u32)> = Vec::with_capacity(n);
+        for (i, (hole, board)) in inputs.iter().enumerate() {
+            match flush_suit(hole, board) {
+                None => {
+                    path1_keys.push((path1::key(hole, board), i as u32));
+                }
+                Some(s) => {
+                    if board_has_no_pair(board) {
+                        out[i] = path2::evaluate(hole, board, s);
+                    } else {
+                        out[i] = path3::evaluate(hole, board, s);
+                    }
+                }
+            }
+        }
+
+        // Phase 2: prefetch + path-1 lookup loop.
+        let m = path1_keys.len();
+        for j in 0..m {
+            if j + PREFETCH_AHEAD < m {
+                path1::prefetch_at(path1_keys[j + PREFETCH_AHEAD].0);
+            }
+            let (key, out_idx) = path1_keys[j];
+            out[out_idx as usize] = path1::lookup_at(key);
+        }
+    }
 }
