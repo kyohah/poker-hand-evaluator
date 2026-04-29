@@ -6,6 +6,9 @@ members = [
     "crates/holdem-assets",
     "crates/eight-low",
     "crates/eight-low-assets",
+    "crates/deuce-seven",
+    "crates/deuce-seven-assets",
+    "scripts",
 ]
 
 [workspace.package]

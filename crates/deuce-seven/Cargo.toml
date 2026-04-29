@@ -1,0 +1,16 @@
+[package]
+name = "phe-deuce-seven"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "2-7 lowball (deuce-seven) hand evaluator (5 cards only) on top of phe-core"
+
+[dependencies]
+phe-core = { path = "../core" }
+phe-deuce-seven-assets = { path = "../deuce-seven-assets" }
+phe-holdem = { path = "../holdem" }
+
+[dev-dependencies]
+phe-scripts = { path = "../../scripts" }

@@ -7,6 +7,20 @@ name = "phe-core"
 version = "0.1.0"
 
 [[package]]
+name = "phe-deuce-seven"
+version = "0.1.0"
+dependencies = [
+ "phe-core",
+ "phe-deuce-seven-assets",
+ "phe-holdem",
+ "phe-scripts",
+]
+
+[[package]]
+name = "phe-deuce-seven-assets"
+version = "0.1.0"
+
+[[package]]
 name = "phe-eight-low"
 version = "0.1.0"
 dependencies = [
@@ -28,6 +42,13 @@ dependencies = [
 [[package]]
 name = "phe-holdem-assets"
 version = "0.1.0"
+
+[[package]]
+name = "phe-scripts"
+version = "0.1.0"
+dependencies = [
+ "phe-core",
+]
 
 [[package]]
 name = "poker-hand-evaluator"

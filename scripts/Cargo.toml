@@ -1,0 +1,16 @@
+[package]
+name = "phe-scripts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Asset generators for the poker-hand-evaluator workspace"
+publish = false
+
+[dependencies]
+phe-core = { path = "../crates/core" }
+
+[[bin]]
+name = "gen-deuce-seven-lookup"
+path = "src/bin/gen-deuce-seven-lookup.rs"
