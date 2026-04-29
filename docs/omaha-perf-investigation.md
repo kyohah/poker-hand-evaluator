@@ -472,6 +472,120 @@ Useful primitives left in tree for downstream:
 - `phe_omaha::flush_suit`, `flush_possible`, `board_has_no_pair`,
   `board_no_straight` — structural predicates exposed for downstream.
 
+## §4.6 article cross-validation
+
+The article's §4.6 (Cactus-Kev / Senzee perfect-hash 5-card kernel
+applied to 7-card via the 21-sub-hand `C(7,5)` enumeration):
+
+  - Sequential 1.33 億 hands : 10.3 s = ~77 ns/7-card hand
+  - Random 1 億 hands        : 10.2 s = ~102 ns/7-card hand
+  - Tables                   : 48 KB (flushes 16 KB + unique5 16 KB +
+                               hash_values 16 KB + hash_adjust 1 KB)
+
+Per-5-card eval (= 7-card / 21):
+  - Sequential : ~3.7 ns / 5-card eval
+  - Random     : ~4.9 ns / 5-card eval
+
+Our Omaha implementation (60 sub-evals): observed ~5.0 ns/combo (full
+kernel), ~4.5 ns/combo (with pre-summed pair/triple partials).
+**Matches the article's per-5-card numbers within noise** — the
+Rust port is at the same kernel cost as the upstream C++ reference.
+
+Things the article spells out that match our root-cause analysis:
+
+1. **§4.6 is slower than §4.2** (naive 7-card direct eval, 32 ns/hand
+   random) by ~3×. The article attributes this to "the 5-card kernel
+   times 21 sub-evals exceeds the cost of one 7-card direct eval
+   with bit ops". For Omaha at 60 sub-evals the same calculus
+   applies — Cactus-Kev × 60 is strictly worse than any 9-card-aware
+   direct eval would be.
+
+2. **`find_fast` is 6 ops + 1 `hash_adjust` lookup + 1 final XOR** —
+   we use the same code verbatim. Senzee's bit-mix is good enough
+   to map all 4,888 unique non-flush prime products into a 13-bit
+   range with no collisions, but it's *not* free; the 5-step
+   compute chain shows up in the bench as ~70% slower per-combo
+   than §4.7's Single-displacement hash.
+
+3. **§4.6 → §4.7 leap = 25× faster random eval**. The article
+   identifies the two wins explicitly:
+   (a) Single-displacement + First-fit-decreasing perfect hash is
+       cheaper to compute than Senzee's prime-product + bit-mix.
+   (b) Direct 7-card eval skips the 21-sub-eval loop entirely.
+   For our 9-card Omaha problem, win (a) is on the table (replace
+   Cactus-Kev's `find_fast` with §4.7-style `OFFSETS + LOOKUP`); win
+   (b) requires a 9-card-aware direct evaluator that bakes the
+   must-use-2-hole rule into the perfect-hash table generation.
+   See "9-card §4.7 analogue" below.
+
+## §4.4 (combinatorial number system) extended to 9 cards: feasibility
+
+A natural question after reading b-inary's article: can we just apply
+**§4.4** — sort the cards, compute a combinatorial-number-system
+index, look up directly in a precomputed array — to 9 cards?
+
+The math works out unfavorably. Comparison with the article's 7-card
+numbers:
+
+| target                                | configs                        | u16 table | per-lookup (random)        |
+|---------------------------------------|--------------------------------|----------:|----------------------------|
+| §4.4 7-card (article)                 | `C(52, 7) = 133,784,560`       | 256 MB    | 38.6 ns (DRAM-bound)        |
+| §4.7 7-card (article — what we use)   | n/a (perfect hash)             | 145 KB    | 4.1 ns (L1d-fit)            |
+| **§4.4 9-card "best 5 of 9" generic** | `C(52, 9) = 3,679,075,400`     | **~7.4 GB** | ~50-100 ns (DRAM/SSD-bound) |
+| **§4.4 9-card Omaha must-use-2-hole** | `C(52, 4) × C(48, 5) = 463 B`  | **~926 GB** | infeasible                 |
+| PHEvaluator quinary (rank-only + flush) | ~15 M                         | **~30 MB** | ~15-20 ns (L3-fit)          |
+
+Three things go wrong with the direct §4.4 extension:
+
+**1. Configuration count grows ~30× from 7 → 9 cards.** `C(52, 7)` is
+133M; `C(52, 9)` is 3.68 G. At u16 per entry that's 7.4 GB even for
+the "best 5 of 9" generic case. Modern desktops can fit it in RAM,
+but it spills out of every level of cache.
+
+**2. Encoding the Omaha must-use-2-hole constraint blows the table
+up by ~125×.** Two different (hole, board) splits over the *same* 9
+cards can produce different best-5 answers (e.g. royal-flush-all-on-
+board with no hearts in hole is unplayable in Omaha but plays as a
+royal in "best 5 of 9"). So the table can't be keyed on the 9-card
+set alone — it has to encode the (hole, board) split, ballooning to
+`C(52, 4) × C(48, 5) ≈ 463 B` entries (~926 GB). Impractical.
+
+**3. Even the 7.4 GB generic version performs worse than what we
+already have.** Article §4.4's 256 MB / 38.6 ns ratio is dominated by
+DRAM latency, not the index computation. A 7.4 GB table is at least
+as DRAM-bound and probably more so (paging, larger working set).
+**Per-Omaha throughput**:
+
+  - Current (60 chained perfect-hash lookups, mostly L2):
+    ~143 ns/eval.
+  - §4.4 9-card (1 DRAM lookup):
+    ~50-100 ns/eval = ~1.5-3× speedup. Marginal vs the cost of
+    generating + shipping a 7 GB asset, and **doesn't satisfy Omaha
+    must-use** so each Omaha call would still need a fall-back path
+    for ~5-10% of hands.
+
+**The smarter table layout** is what PHEvaluator does:
+
+- Drop suits except for flush detection: encode the 9-card hand as
+  13 rank-counts (each 0..4). Suits go to a separate ~16 KB
+  flush-rank table.
+- Encode the (hole, board) split in the same key by using two
+  separate per-rank counts (e.g. base-5 digit pairs). Only valid
+  configurations get table entries.
+- Total valid configurations: ~15 million → ~30 MB at u16/entry.
+  Fits L3 on modern x86 (8-16 MB *each* core, more shared).
+- Per-lookup latency: ~15-20 ns at L3, possibly 5-8 ns if a hot
+  subset stays in L2.
+- Per-Omaha at 1 lookup + flush check: **~15-25 ns/eval** = 5-10×
+  speedup vs current. Hits the user's "3× Hold'em" target.
+
+Bottom line: **§4.4 doesn't extend cleanly to 9-card** (too big,
+DRAM-bound, doesn't satisfy must-use). The right shape is the §4.7
+perfect-hash *with rank-counts as the key and suits factored out*
+— that's PHEvaluator. The §4.4 → 9-card path *is* implementable but
+is strictly dominated by PHEvaluator on every metric (size, latency,
+correctness), so don't bother.
+
 ## References
 
 - Cactus-Kev original: <http://suffe.cool/poker/evaluator.html>
