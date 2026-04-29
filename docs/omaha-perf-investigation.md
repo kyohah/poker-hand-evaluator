@@ -472,6 +472,64 @@ Useful primitives left in tree for downstream:
 - `phe_omaha::flush_suit`, `flush_possible`, `board_has_no_pair`,
   `board_no_straight` — structural predicates exposed for downstream.
 
+## Straight-only structural short-circuit (user proposal)
+
+**Question**: precompute, per 3-rank board subset, the 2-rank hole
+combos that complete a straight (e.g. `{4,5,6} → [{2,3}, {3,7}, {7,8}]`).
+Use the table to detect a straight cheaply before running the
+60-combo loop.
+
+**Implementation** (`evaluate_straight_short_circuit` in `crates/omaha/
+src/lib.rs`): replaces the 286-key precomputed table with a more
+compact 13-bit-mask AND/popcount sweep over the 9 standard 5-rank
+windows + the wheel. Same information density, fewer indirections.
+
+Short-circuit fires when:
+  - no flush is reachable, AND
+  - the board has no pair, AND
+  - some 5-rank window has ≥3 board ranks + 2 specific hole ranks
+    that fill the missing positions
+
+Under those, Straight is the maximum reachable category (Flush is
+gated out by no-flush-eligible; FH / Quads need a board pair). The
+short-circuit returns `(4 << 12) | (top - 3)` directly — one packed
+u16 with no LOOKUP touched.
+
+**Bench (10K random fixtures, criterion `--quick`)**:
+
+| variant                  | total ms | ns/eval | vs production |
+|--------------------------|---------:|--------:|--------------:|
+| optimized (production)   | 1.36     | 136     | —             |
+| **straight_short_circuit** | **1.46** | **146** | **+10 ns slower** |
+
+**Frequency**: short-circuit fires on **5.72%** of random fixtures.
+
+**Why it's a net loss**: the structural-detection overhead (~25 ns:
+suit counts, rank masks, board-pair check, 9-window straight sweep)
+is paid on **every hand**. The 60-combo skip saves ~140-180 ns but
+only on the ~5.7% of hands that actually hit the fast path.
+Expected:
+
+  +25 ns overhead × 100% − 140 ns savings × 5.72% ≈ +17 ns net
+
+The measured +10 ns is consistent with the model (the overhead
+estimate was slightly high; LLVM hoists / vectorises some of the
+predicate compute).
+
+**Could it become a net win?** If we move the detection *into* path 1
+(only run the masks + window sweep when path 1 + no-pair-board is
+already chosen by dispatch), the overhead is paid only on ~33% of
+hands instead of 100%, dropping the cost to ~8 ns. Savings stay at
+~10 ns. Net **+2 ns at best**, which is in the bench-noise floor on
+this machine — not worth the code-path split.
+
+**Generalisable lesson** (matches the earlier B&B-prune attempt and
+the HighCard fast path): on random Omaha, single-category structural
+short-circuits don't pay because their applicability rate (1-6%) is
+below the breakeven where overhead × all_hands > savings × hit_rate.
+The path-2 (flush-dominates) optimisation works *only* because it
+fires on 20% of hands AND the savings per hit are large (~80 ns).
+
 ## §4.6 article cross-validation
 
 The article's §4.6 (Cactus-Kev / Senzee perfect-hash 5-card kernel

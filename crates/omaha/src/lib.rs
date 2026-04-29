@@ -506,6 +506,124 @@ pub fn evaluate_kev_v3_always_hash(hole: &[usize; 4], board: &[usize; 5]) -> u16
     best_kev
 }
 
+/// **Experimental** straight-short-circuit evaluator for Omaha high.
+///
+/// Whole-hand fast path that returns the packed Straight rank without
+/// running the 60-combo loop, when:
+///   - no flush is reachable
+///   - the board has no pair (so FH/Quads are also unreachable —
+///     anything below Straight category cannot beat a Straight)
+///   - some 5-rank window has ≥3 ranks on board and ≥2 ranks in hole
+///     covering the missing two
+///
+/// Bench scenario for the user's question about precomputing
+/// straight-completing card combos. We don't need the full
+/// "board-triple → completing-hole-pairs" table because the same
+/// information is encoded compactly in two 13-bit rank masks plus a
+/// per-window AND/popcount sweep.
+pub fn evaluate_straight_short_circuit(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
+    // Suit counts for flush eligibility.
+    let mut hole_s = [0u8; 4];
+    let mut board_s = [0u8; 4];
+    for &c in hole {
+        hole_s[c & 3] += 1;
+    }
+    for &c in board {
+        board_s[c & 3] += 1;
+    }
+    let flush_eligible = (0..4).any(|s| hole_s[s] >= 2 && board_s[s] >= 3);
+
+    // Rank masks.
+    let mut hole_mask: u16 = 0;
+    let mut board_mask: u16 = 0;
+    let mut hole_dup = false;
+    {
+        let mut h_seen: u16 = 0;
+        for &c in hole {
+            let bit = 1u16 << (c / 4);
+            if h_seen & bit != 0 {
+                hole_dup = true;
+            }
+            h_seen |= bit;
+            hole_mask |= bit;
+        }
+    }
+    let mut board_dup = false;
+    {
+        let mut b_seen: u16 = 0;
+        for &c in board {
+            let bit = 1u16 << (c / 4);
+            if b_seen & bit != 0 {
+                board_dup = true;
+            }
+            b_seen |= bit;
+            board_mask |= bit;
+        }
+    }
+
+    // Short-circuit condition: no flush, no board pair, straight reachable.
+    if !flush_eligible && !board_dup {
+        let _ = hole_dup; // unused in this path (pocket pair OK for straight detect, but rules out it being the max if it gives Trips — actually Trips < Straight so still fine)
+        if let Some(top) = quick_max_straight_top(hole_mask, board_mask) {
+            // Packed Straight rank = (cat 4 << 12) | (top - 3).
+            // top range: 3 (wheel 5-high) ..= 12 (broadway A-high), idx 0..9.
+            return (4u16 << 12) | (top - 3) as u16;
+        }
+    }
+
+    // Fall back to the production evaluator.
+    OmahaHighRule::evaluate(hole, board)
+}
+
+/// Highest top-rank of a straight reachable from
+/// `(2 hole cards + 3 board cards)`, or `None` if no straight is
+/// reachable. `top` is the highest rank of the 5-card window
+/// (3 for wheel A-2-3-4-5, 4..=12 for 6-high through broadway).
+#[inline]
+fn quick_max_straight_top(hole_mask: u16, board_mask: u16) -> Option<u8> {
+    let combined = hole_mask | board_mask;
+    let mut best_top: Option<u8> = None;
+    // 9 standard windows: ranks {r, r+1, r+2, r+3, r+4} for r = 0..=8.
+    // Iterate ascending — higher r overrides a lower-found straight.
+    for r in 0u8..=8 {
+        let window: u16 = 0b1_1111u16 << r;
+        if (combined & window).count_ones() < 5 {
+            continue;
+        }
+        if (board_mask & window).count_ones() < 3 {
+            continue;
+        }
+        if (hole_mask & window).count_ones() < 2 {
+            continue;
+        }
+        // The 2 missing-from-board ranks must be in hole.
+        let need_from_hole = window & !board_mask;
+        if need_from_hole & hole_mask != need_from_hole {
+            continue;
+        }
+        if need_from_hole.count_ones() > 2 {
+            continue;
+        }
+        best_top = Some(r + 4);
+    }
+    // Wheel only matters if no higher straight was found.
+    if best_top.is_none() {
+        let wheel: u16 = (1u16 << 0) | (1u16 << 1) | (1u16 << 2) | (1u16 << 3) | (1u16 << 12);
+        if (combined & wheel).count_ones() == 5
+            && (board_mask & wheel).count_ones() >= 3
+            && (hole_mask & wheel).count_ones() >= 2
+        {
+            let need_from_hole = wheel & !board_mask;
+            if need_from_hole & hole_mask == need_from_hole
+                && need_from_hole.count_ones() <= 2
+            {
+                best_top = Some(3); // wheel = 5-high straight
+            }
+        }
+    }
+    best_top
+}
+
 /// **Experimental** Cactus-Kev based evaluator for Omaha high.
 ///
 /// Uses the ~49 KB Kev tables (`HASH_*`, `FLUSHES`, `UNIQUE5`) instead

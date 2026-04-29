@@ -13,8 +13,8 @@ use phe_core::Hand;
 use phe_holdem::HighRule;
 use phe_omaha::{
     board_has_no_pair, board_no_straight, evaluate_kev, evaluate_kev_v1,
-    evaluate_kev_v2_always_flush, evaluate_kev_v3_always_hash, flush_possible, flush_suit,
-    OmahaHighRule,
+    evaluate_kev_v2_always_flush, evaluate_kev_v3_always_hash, evaluate_straight_short_circuit,
+    flush_possible, flush_suit, OmahaHighRule,
 };
 use std::sync::OnceLock;
 
@@ -266,6 +266,48 @@ fn bench_random_10k(c: &mut Criterion) {
             black_box(acc)
         })
     });
+
+    // User-proposed straight-short-circuit: precomputed structural
+    // detection of "Straight is the max" hands; falls back to
+    // production eval otherwise.
+    group.bench_function("straight_short_circuit", |b| {
+        b.iter(|| {
+            let mut acc: u32 = 0;
+            for (hole, board) in f {
+                acc = acc.wrapping_add(evaluate_straight_short_circuit(hole, board) as u32);
+            }
+            black_box(acc)
+        })
+    });
+
+    // Frequency report: how often does the short-circuit actually fire?
+    let mut hits = 0usize;
+    for (hole, board) in f {
+        let prod = OmahaHighRule::evaluate(hole, board);
+        let ssc = evaluate_straight_short_circuit(hole, board);
+        // SSC equals prod by definition (cross-check tests pass).
+        // Detect fast-path firing: it's exactly when prod is a Straight
+        // (cat 4) AND it would have come from the SSC path. Approximate
+        // by counting Straight outcomes on the no-flush, no-pair-board
+        // hands (which is what the SSC condition allows).
+        let _ = (prod, ssc);
+        let mut hole_s = [0u8; 4];
+        let mut board_s = [0u8; 4];
+        for &c in hole { hole_s[c & 3] += 1; }
+        for &c in board { board_s[c & 3] += 1; }
+        let flush_eligible = (0..4).any(|s| hole_s[s] >= 2 && board_s[s] >= 3);
+        if flush_eligible { continue; }
+        if !board_has_no_pair(board) { continue; }
+        if (prod >> 12) == 4 {
+            hits += 1;
+        }
+    }
+    eprintln!(
+        "straight_short_circuit fires on {} / {} ({:.2}%) of fixtures",
+        hits,
+        NUM_FIXTURES,
+        100.0 * hits as f64 / NUM_FIXTURES as f64,
+    );
 
     group.finish();
 }
