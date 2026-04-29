@@ -36,8 +36,19 @@ repository.workspace = true
 description = "Unified poker hand evaluator: Hold'em, 8-or-better low, A-5 lowball, 2-7 lowball, Omaha"
 
 [features]
-default = []
-# Variant features are wired up as each sub-crate is brought online.
-all = []
+default = ["holdem", "eight-low"]
+holdem = ["dep:phe-holdem"]
+eight-low = ["dep:phe-eight-low"]
+deuce-seven = ["dep:phe-deuce-seven"]
+omaha = ["dep:phe-omaha", "dep:phe-holdem"]
+all = ["holdem", "eight-low", "deuce-seven", "omaha"]
 
 [dependencies]
+phe-core = { path = "crates/core" }
+phe-holdem = { path = "crates/holdem", optional = true }
+phe-eight-low = { path = "crates/eight-low", optional = true }
+phe-deuce-seven = { path = "crates/deuce-seven", optional = true }
+phe-omaha = { path = "crates/omaha", optional = true }
+
+[dev-dependencies]
+phe-eight-low = { path = "crates/eight-low" }
