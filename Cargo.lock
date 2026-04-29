@@ -332,13 +332,19 @@ dependencies = [
  "criterion",
  "phe-core",
  "phe-holdem",
+ "phe-omaha-assets",
 ]
+
+[[package]]
+name = "phe-omaha-assets"
+version = "0.1.0"
 
 [[package]]
 name = "phe-scripts"
 version = "0.1.0"
 dependencies = [
  "phe-core",
+ "phe-holdem-assets",
 ]
 
 [[package]]

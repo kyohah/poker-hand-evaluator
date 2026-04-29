@@ -10,7 +10,12 @@ publish = false
 
 [dependencies]
 phe-core = { path = "../crates/core" }
+phe-holdem-assets = { path = "../crates/holdem-assets" }
 
 [[bin]]
 name = "gen-deuce-seven-lookup"
 path = "src/bin/gen-deuce-seven-lookup.rs"
+
+[[bin]]
+name = "gen-omaha-noflush-lookup"
+path = "src/bin/gen-omaha-noflush-lookup.rs"

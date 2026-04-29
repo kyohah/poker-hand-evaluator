@@ -9,6 +9,7 @@ members = [
     "crates/deuce-seven",
     "crates/deuce-seven-assets",
     "crates/omaha",
+    "crates/omaha-assets",
     "scripts",
 ]
 

@@ -187,3 +187,134 @@ fn flush_eligible_but_board_paired_uses_full_eval() {
     let r = OmahaHighRule::evaluate(&hole, &board);
     assert_eq!(r, naive(&hole, &board));
 }
+
+// --- 9-card-direct edge cases for the flush-dominates path ----------
+//
+// These cases specifically exercise the SF window scan + top-2/top-3
+// plain-flush fallback. They were chosen so that a "top-2 hole + top-3
+// board by rank" heuristic would return the *wrong* answer if it ran
+// without SF detection.
+
+#[test]
+fn wheel_sf_chosen_over_high_card_flush() {
+    // hole = {As, 2s, 6s, 7s} / board = {3s, 4s, 5s, plus 2 non-spades}
+    // Top-2 hole = As, 7s; top-3 board = 5s, 4s, 3s → A 7 5 4 3 (plain flush, A high).
+    // But hole {6s, 7s} + board {3s, 4s, 5s} = 7-6-5-4-3 SF (7-high).
+    // SF > flush, so SF must win.
+    let hole = parse_4("As2s6s7s");
+    let board = parse_5("3s4s5sKdQc"); // 3 spades, no pair
+    let r = OmahaHighRule::evaluate(&hole, &board);
+    assert_eq!(r, naive(&hole, &board));
+    assert_eq!(get_hand_category(r), HandCategory::StraightFlush);
+}
+
+#[test]
+fn royal_sf_via_window_scan() {
+    // Hole {Ks, Js, 2c, 3c}, board {As, Qs, Ts, 4d, 5d}
+    // Window {T,J,Q,K,A}: hole has K,J (2) ≥ 2; board has A,Q,T (3) ≥ 3 → royal SF.
+    let hole = parse_4("KsJs2c3c");
+    let board = parse_5("AsQsTs4d5d");
+    let r = OmahaHighRule::evaluate(&hole, &board);
+    assert_eq!(r, naive(&hole, &board));
+    assert_eq!(get_hand_category(r), HandCategory::StraightFlush);
+}
+
+#[test]
+fn sf_window_scan_picks_higher_window_when_two_match() {
+    // Two SF windows both reachable; the higher one must win.
+    // Hole {7s, 8s, 4s, 3s}, board {5s, 6s, 9s, Ad, 2c}.
+    // Window 5..9 (5-6-7-8-9): hole has 7,8 (2) ≥ 2; board has 5,6,9 (3) ≥ 3 → 9-high SF ✓
+    // Window 4..8 (4-5-6-7-8): hole has 4,7,8 (3) ≥ 2; board has 5,6 (2) — only 2, fails.
+    // Window 3..7 (3-4-5-6-7): hole has 3,4,7 (3) ≥ 2; board has 5,6 (2) — fails.
+    // So only the 9-high window matches; the eval returns 9-high SF.
+    let hole = parse_4("7s8s4s3s");
+    let board = parse_5("5s6s9sAd2c");
+    let r = OmahaHighRule::evaluate(&hole, &board);
+    assert_eq!(r, naive(&hole, &board));
+    assert_eq!(get_hand_category(r), HandCategory::StraightFlush);
+}
+
+#[test]
+fn plain_flush_no_sf_top2_top3_works() {
+    // hole {As, Ks, 2c, 3c}, board {Qs, 9s, 6s, 4d, 7h}
+    // Spade-suit ranks: hole {A, K}, board {Q, 9, 6}. No 5-rank window is
+    // covered (gap 9-Q for the J/T range). Top-2+top-3 = A,K,Q,9,6 = plain flush A high.
+    let hole = parse_4("AsKs2c3c");
+    let board = parse_5("Qs9s6s4d7h");
+    let r = OmahaHighRule::evaluate(&hole, &board);
+    assert_eq!(r, naive(&hole, &board));
+    assert_eq!(get_hand_category(r), HandCategory::Flush);
+}
+
+#[test]
+fn plain_flush_with_4_hole_in_suit_picks_top_2() {
+    // 4 hole spades. Need to make sure top-2 logic picks the right pair.
+    // hole {As, Ks, 5s, 4s}, board {Qs, 9s, 6s, 4d, 7h}.
+    // Top-2 hole = A, K; top-3 board = Q, 9, 6 → A K Q 9 6 plain flush.
+    let hole = parse_4("AsKs5s4s");
+    let board = parse_5("Qs9s6s4d7h");
+    let r = OmahaHighRule::evaluate(&hole, &board);
+    assert_eq!(r, naive(&hole, &board));
+    assert_eq!(get_hand_category(r), HandCategory::Flush);
+}
+
+#[test]
+fn plain_flush_with_5_board_in_suit_picks_top_3() {
+    // 5 board spades. Top-3 by rank = K, Q, J (skip 5, 4).
+    // hole {As, 9s, 2c, 3c}, board {Ks, Qs, Js, 5s, 4s} — but board has 5
+    // distinct ranks (Ks, Qs, Js, 5s, 4s) so flush-dominates path applies.
+    // Top-2 hole = A, 9; top-3 board = K, Q, J → A K Q J 9 plain flush.
+    let hole = parse_4("As9s2c3c");
+    let board = parse_5("KsQsJs5s4s");
+    let r = OmahaHighRule::evaluate(&hole, &board);
+    assert_eq!(r, naive(&hole, &board));
+    assert_eq!(get_hand_category(r), HandCategory::Flush);
+}
+
+/// Cross-check: every (hole, board) configuration that hits the
+/// flush-dominates fast path must agree with the naive 60-combo
+/// reference. This is a deterministic random sweep so any regression
+/// in the SF window scan / top-N bit logic is caught.
+#[test]
+fn flush_dominates_random_sweep_matches_naive() {
+    // Same PCG-style RNG the bench uses, different seed.
+    struct Rng(u64);
+    impl Rng {
+        fn next_u64(&mut self) -> u64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            self.0
+        }
+    }
+
+    let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+    let mut checked = 0usize;
+    let mut tried = 0usize;
+    // Bound the loop so a pathological draw distribution can't hang.
+    while checked < 5_000 && tried < 200_000 {
+        tried += 1;
+        let mut deck: [usize; 52] = std::array::from_fn(|i| i);
+        for i in 0..9 {
+            let j = i + (rng.next_u64() as usize) % (52 - i);
+            deck.swap(i, j);
+        }
+        let hole = [deck[0], deck[1], deck[2], deck[3]];
+        let board = [deck[4], deck[5], deck[6], deck[7], deck[8]];
+
+        if !board_has_no_pair(&board) || flush_suit(&hole, &board).is_none() {
+            continue;
+        }
+
+        let opt = OmahaHighRule::evaluate(&hole, &board);
+        let nai = naive(&hole, &board);
+        assert_eq!(
+            opt, nai,
+            "mismatch on hole={:?} board={:?}: opt={} naive={}",
+            hole, board, opt, nai
+        );
+        checked += 1;
+    }
+    assert!(checked >= 1_000, "too few flush-dominates samples drawn ({checked})");
+}
