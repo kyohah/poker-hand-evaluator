@@ -40,61 +40,58 @@ Machine: Intel Core i9-12900H (Alder Lake, 14C / 20T), Windows 11,
 | Omaha high | 4 + 5 | `OmahaHighRule::evaluate_batch` (path-1 prefetch) | ~54 | ~18.5 |
 | Omaha high | 4 + 5 | naive 60-combo enum (reference) | ~146 | ~6.8 |
 
-### Comparison vs other libraries
+### Reference numbers from other libraries
 
-Two well-known evaluators publish their own benchmark numbers. **All
-numbers below are from each project's own README**, run on different
-machines, different languages, different harnesses — treat them as
-order-of-magnitude indicators rather than apples-to-apples
-comparisons.
+For order-of-magnitude context, two other open-source poker
+evaluators publish their own benchmark numbers in their READMEs.
+The numbers below are reproduced verbatim from those projects —
+they were run on different machines, different languages, and
+different harnesses, so the cross-row comparison is **not**
+apples-to-apples and shouldn't be read as "X is faster than Y" in
+any rigorous sense. They're useful as ballpark calibration only.
 
-#### vs [`Nerdmaster/poker`](https://github.com/Nerdmaster/poker) (Go, `go test -bench`)
-
-| Variant | `Nerdmaster/poker` (Go) | `phe-*` (this repo) | Speed-up |
+| Variant | [`Nerdmaster/poker`](https://github.com/Nerdmaster/poker) (Go) | [`HenryRLee/PokerHandEvaluator`](https://github.com/HenryRLee/PokerHandEvaluator) (C++) | `phe-*` (this repo, Rust) |
 |---|---|---|---|
-| 5-card | ~6.4 ns/eval (~150 M/s) | ~1.4 ns/eval (~705 M/s) | ~4.5× |
-| 7-card | ~145 ns/eval (~6.5 M/s) | ~1.5 ns/eval (~666 M/s) | ~96× |
-| Omaha (9-card) | ~416 ns/eval (~2.4 M/s) | ~62 ns/eval (~16.1 M/s) | ~6.7× |
+| 5-card | ~6.4 ns | ~13.8 ns | ~1.4 ns |
+| 7-card | ~145 ns | ~17.8 ns | ~1.5 ns |
+| Omaha 4-hole | ~416 ns | ~30.5 ns | ~62 ns |
 
-The 7-card and Omaha gaps come from algorithmic differences, not just
-language: `Nerdmaster/poker` enumerates `C(7, 5) = 21` 5-card sub-hands
-for 7-card and `C(4, 2) × C(5, 3) = 60` for Omaha, whereas
-`phe-holdem` does **one** perfect-hash table read for any 5/6/7-card
-hand (b-inary's design) and `phe-omaha` dispatches to one of three
-"9-card direct" paths for Omaha (see below).
+Caveats / things this table does not capture:
 
-#### vs [`HenryRLee/PokerHandEvaluator`](https://github.com/HenryRLee/PokerHandEvaluator) (C++, Google Benchmark)
+- **Different machines.** `Nerdmaster/poker`'s numbers are from a
+  16-core Go test runner, `HenryRLee/PokerHandEvaluator`'s from a
+  2.6 GHz 12-core Xeon-class CPU, and the `phe-*` numbers above are
+  from an Intel i9-12900H laptop boosting to ~5 GHz. Even normalising
+  for clock, individual numbers can shift by 1.5–2× across machines.
+- **Different scope.** `Nerdmaster/poker` is a complete poker library
+  with `Card` / `Deck` / `Hand` / dealing / ranking utilities — not
+  just an evaluator. `HenryRLee/PokerHandEvaluator` ships 5/6/7-card
+  + PLO4/5/6 evaluators across multiple languages.  `phe-*` is just
+  the inner-hot-path evaluator, designed to be embedded in a solver
+  / equity calculator that supplies its own deal & deck logic.
+- **Different design goals.**
+  - `phe-holdem` follows b-inary's "one perfect-hash lookup" design,
+    so 5/6/7-card hands cost about the same. `Nerdmaster/poker`
+    enumerates `C(7, 5) = 21` 5-card sub-hands for 7-card; that's
+    where most of its 7-card cost goes.
+  - For Omaha, `HenryRLee/PokerHandEvaluator`'s PLO4 table is **30.5
+    MB** vs `phe-omaha`'s **22 MB** — similar size, but their
+    throughput is roughly 2× ours. The gap looks algorithmic (denser
+    key encoding) rather than language-level, and is the most
+    interesting honest finding from this comparison.
 
-`HenryRLee/PokerHandEvaluator` publishes verbatim Google Benchmark
-output for both `EvaluateRandom*` benches (each iteration evaluates
-100 hands) and a memory-footprint table per built binary.
-
-| Variant | `HenryRLee/PokerHandEvaluator` (C++) | `phe-*` (this repo, Rust) | Ratio |
-|---|---|---|---|
-| Random 5-card | ~13.76 ns/eval (~73 M/s) | ~1.4 ns/eval (~705 M/s) | `phe-*` ~9.8× faster |
-| Random 7-card | ~17.78 ns/eval (~56 M/s) | ~1.5 ns/eval (~666 M/s) | `phe-*` ~11.9× faster |
-| Omaha 4-hole (PLO4) | ~30.5 ns/eval (~33 M/s) | ~62 ns/eval (~16.1 M/s) | **`phe-*` ~2× slower** |
-
-So on 5/6/7-card Hold'em-shape hands, `phe-holdem` (b-inary's design)
-is around an order of magnitude faster. On Omaha (PLO4), `HenryRLee`
-is roughly 2× faster than `phe-omaha` — at the cost of a noticeably
-larger lookup table:
+Memory-footprint side-by-side (numbers from each project's own
+README; for `phe-*` these are runtime u16/i32 array sizes):
 
 | Variant | `HenryRLee/PokerHandEvaluator` table | `phe-*` table |
 |---|---|---|
-| 5-card lookup | 60 KB | 163 KB (covers 5/6/7) |
+| 5-card lookup | 60 KB | 163 KB (covers 5/6/7 in one table) |
 | 7-card lookup | 144 KB | 163 KB (same as 5-card) |
-| Omaha (PLO4) lookup | **30.5 MB** | **22 MB** |
+| Omaha (PLO4) lookup | 30.5 MB | 22 MB |
 
-The Omaha gap is the most interesting honest item here: similar table
-sizes (22 MB vs 30.5 MB) but ~2× difference in throughput suggests
-their key/lookup design is denser than ours. There is room to close
-this gap without growing the table by more than ~40%.
-
-Also note that `HenryRLee/PokerHandEvaluator` ships PLO5 / PLO6 (5- /
-6-hole Omaha variants) in the **same** family — those need 110 MB and
-345 MB tables respectively. `phe-omaha` only handles standard 4-hole
-Omaha.
+Also note that `HenryRLee/PokerHandEvaluator` ships PLO5 (5-hole) and
+PLO6 (6-hole) Omaha variants which need 110 MB and 345 MB lookup
+tables respectively — `phe-omaha` only handles standard 4-hole Omaha.
 
 ### Memory footprint (lookup tables)
 
