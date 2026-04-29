@@ -7,6 +7,17 @@ name = "phe-core"
 version = "0.1.0"
 
 [[package]]
+name = "phe-eight-low"
+version = "0.1.0"
+dependencies = [
+ "phe-eight-low-assets",
+]
+
+[[package]]
+name = "phe-eight-low-assets"
+version = "0.1.0"
+
+[[package]]
 name = "phe-holdem"
 version = "0.1.0"
 dependencies = [

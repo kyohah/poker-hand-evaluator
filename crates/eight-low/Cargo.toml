@@ -1,0 +1,11 @@
+[package]
+name = "phe-eight-low"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "8-or-better and A-5 lowball (Razz) hand evaluator (5-7 cards)"
+
+[dependencies]
+phe-eight-low-assets = { path = "../eight-low-assets" }

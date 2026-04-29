@@ -1,0 +1,10 @@
+[package]
+name = "phe-eight-low-assets"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "8-or-better / A-5 lowball lookup tables and constants"
+
+[dependencies]
