@@ -224,6 +224,76 @@ cargo run --release -p phe-omaha --example exhaustive   # appends one row
 Variance per machine is ~10% on a quiet system; run 3-10× and look at
 the median, not a single number.
 
+## Cross-reference with b-inary's article (`yabaitechtokyo_vol6_holdem_chapter.md`)
+
+The Hold'em-evaluator we depend on is the *same* implementation
+described in section 4.7 of b-inary's article (Hold'em high, 7-card
+direct eval, 145 KB tables). The article's measured performance:
+
+| Implementation              | Sequential 1.33億   | Random 1億       | Tables  |
+|-----------------------------|---------------------|------------------|---------|
+| 4.1 naive 5-card brute      | 58.0 s (2.31 M/s)   | 50.0 s (2.0 M/s) | minimal |
+| 4.2 naive 7-card direct     | 2.77 s (48 M/s)     | 3.14 s (32 M/s)  | minimal |
+| 4.3 hash-table              | 9.11 s (15 M/s)     | 33.0 s (3.0 M/s) | 5.5 GB  |
+| 4.4 vec + comb-number       | (n/a)               | 3.86 s (26 M/s)  | 256 MB  |
+| 4.5 Two-Plus-Two            | 0.06 s (2.2 G/s)    | 6.91 s (15 M/s)  | 124 MB  |
+| 4.6 Cactus-Kev (5-card)     | 10.3 s (13 M/s)     | 10.2 s (9.8 M/s) | 48 KB   |
+| **4.7 b-inary final (ours)**| **0.16 s (819 M/s)**| **0.41 s (244 M/s)** | **145 KB** |
+
+Key takeaways relevant to Omaha:
+
+1. **The 4.5 vs 4.6 vs 4.7 contrast nails the cache argument.** Two-Plus-
+   Two has the same ~5-10 ns sequential ceiling as 4.7 but its 124 MB
+   tables miss cache catastrophically on random access (15 M/s vs the
+   244 M/s 4.7 hits). Cactus-Kev's 48 KB tables solve cache but its
+   prime-product hash is more expensive per probe than 4.7's
+   single-displacement hash. **4.7's win is "smallest tables that
+   still preserve a cheap hash."**
+
+2. **Our Hold'em high single-eval is at the 4.7 ceiling** (~4 ns).
+   No room to optimise the inner kernel; speedups have to come from
+   *fewer kernel calls*.
+
+3. **The article does not extend 4.7 to 9 cards.** That's the gap the
+   user wants to close. A 9-card analogue of 4.7 needs:
+   - A new rank-base set with unique sums for **9-card** multisets.
+     (Quick check this session: `RANK_BASES` from the 5-7 set has
+     **219 collisions** across the 270,270 9-card multisets, so the
+     existing bases can't be reused as-is.)
+   - A bigger LOOKUP table (precise size depends on the bases'
+     `MAX_RANK_KEY`, but order-of-magnitude ~1-10 MB).
+   - A flush-detection scheme that survives the count-up to 9 cards
+     in one suit (the existing `0x3333 + n` nibble-counter trick
+     handles 7 cards because `3+7=10=0xa` still fits a nibble; with 9
+     cards `3+9=12=0xc` also fits, so the same `0x8888` flush-mask
+     bit-3 trick still works — good news).
+
+4. For **Omaha specifically** (not generic 9-card "best 5 of 9"), the
+   single-lookup target requires baking the **"exactly 2 hole + 3
+   board"** constraint into the table. PHEvaluator's quinary hash
+   (separate hole/board base-5 digits) is the right shape; a direct
+   "best 5 of 9" lookup gives the wrong answer for hands where the
+   global max-of-9 violates the must-use-2 rule (e.g. royal flush all
+   on board with no matching hole hearts).
+
+## Updated take on the user's target
+
+- "**Hold'em vs Omaha: 6× → 3× slowdown**" calibration:
+  - Hold'em direct eval: ~4 ns (article 4.7) ↔ our local measurement
+    ~10 ns including loop overhead.
+  - "6× Hold'em" ≈ 24-60 ns; "3× Hold'em" ≈ 12-30 ns.
+  - **Current Omaha: ~140 ns ≈ 35× Hold'em direct eval.**
+- Reaching 3× requires either:
+  - **PHEvaluator quinary hash** (1 lookup → ~10-15 ns with flush
+    handling). 1-2 weeks to implement, ~30 MB tables (need to verify
+    fits cache).
+  - **9-card direct eval** with Omaha must-use baked in (analogue of
+    4.7 for Omaha). Same budget as PHEvaluator effectively.
+
+The Cactus-Kev kernel switch (recommendation #1 above) gets us **~3-4×
+to ~37 ns/eval = ~9× Hold'em**, which is *better* than 6× but still
+short of 3×. It's the right intermediate step.
+
 ## References
 
 - Cactus-Kev original: <http://suffe.cool/poker/evaluator.html>
