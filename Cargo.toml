@@ -8,6 +8,7 @@ members = [
     "crates/eight-low-assets",
     "crates/deuce-seven",
     "crates/deuce-seven-assets",
+    "crates/omaha",
     "scripts",
 ]
 

@@ -1,0 +1,12 @@
+[package]
+name = "phe-omaha"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Omaha high evaluator (4 hole + 5 board, best-of-60) on top of phe-holdem"
+
+[dependencies]
+phe-core = { path = "../core" }
+phe-holdem = { path = "../holdem" }

@@ -44,6 +44,14 @@ name = "phe-holdem-assets"
 version = "0.1.0"
 
 [[package]]
+name = "phe-omaha"
+version = "0.1.0"
+dependencies = [
+ "phe-core",
+ "phe-holdem",
+]
+
+[[package]]
 name = "phe-scripts"
 version = "0.1.0"
 dependencies = [
