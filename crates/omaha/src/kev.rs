@@ -3,9 +3,9 @@
 //! Used as the inner kernel for the experimental Kev-based Omaha
 //! evaluator (`evaluate_kev` in this crate). Smaller working set than
 //! `phe-holdem`'s 145 KB perfect-hash table — total Kev tables are
-//! ~49 KB and fit L1d on most x86. See
-//! `docs/omaha-perf-investigation.md` for the rationale and
-//! benchmark target.
+//! ~49 KB and fit L1d on most x86. Empirically slower than the
+//! production `OmahaHighRule::evaluate` despite the better cache
+//! behaviour; kept here as a reference / cross-check kernel.
 //!
 //! Convention: returned u16 is the **Cactus-Kev rank** in `1..=7462`,
 //! where **smaller = stronger** (1 = royal SF, 7462 = worst HighCard

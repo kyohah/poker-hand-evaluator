@@ -7,3 +7,7 @@ Cargo.lock.bak
 .claude/
 *.swp
 *~
+
+# Third-party reference materials kept locally only (copyright).
+/docs/yabaitechtokyo_vol6.pdf
+/docs/yabaitechtokyo_vol6_holdem_chapter.md

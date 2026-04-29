@@ -9,12 +9,12 @@ loops, or SIMD-based multi-threading inside any of the `phe-*` crates
 (`phe-core`, `phe-holdem`, `phe-eight-low`, `phe-deuce-seven`,
 `phe-omaha`, `phe-badugi`, the facade, or any future variant crate).
 
-**Reason**: the downstream consumer
-(`~/ghq/github.com/kyohah/poker-cuda-solver`) already parallelises at
-the **solver** level via `rayon` — every CFR iteration spawns the
-parallel work. Adding parallelism inside the eval would either
-duplicate the work or thrash the CPU caches by sub-dividing already
-hot loops.
+**Reason**: this crate is designed to be embedded in a
+solver / equity calculator that already parallelises at the
+**outer** level (e.g., per-iteration in CFR, or per-hand in equity
+sweeps). Adding parallelism inside the eval would either duplicate
+the outer work or thrash the CPU caches by sub-dividing already hot
+loops.
 
 In particular: when an "obvious" speedup involves parallel iteration,
 prefer **single-thread cache-friendly** improvements (smaller tables,
@@ -39,5 +39,4 @@ unix_ts,commit,bench,count,elapsed_s,mevals_per_s,ns_per_eval
 `cargo run --release -p phe-omaha --example exhaustive` auto-appends
 one row per run (10 s wall-clock random-stream throughput). Keep this
 working — it's the regression gate when an "optimisation" actually
-slows things down (Cactus-Kev kernel switch was caught this way; see
-`docs/omaha-perf-investigation.md`).
+slows things down (the Cactus-Kev kernel switch was caught this way).
