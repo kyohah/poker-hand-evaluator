@@ -1,23 +1,79 @@
 //! Path 3: flush eligible AND board has a pair.
 //!
-//! Both flush combos and non-flush combos may produce the maximum
-//! (a flush, but also Full House or Four-of-a-Kind that the board
-//! pair makes reachable). Each of the 60 (hole_pair, board_triple)
-//! combos is dispatched per-combo — flush iff all 5 cards share the
-//! flush suit, otherwise rank-only. Hole and board partials are
-//! pre-summed once so the inner loop is one branch + one of two
-//! lookups per combo.
+//! Invariants on entry:
+//!   - `flush_suit = Some(suit)` → at least one 5-card flush combo is
+//!     reachable, so the answer is **at least** a Flush.
+//!   - Board has at least one rank pair → Full House and Quads are
+//!     reachable (Path 2 ruled out the no-board-pair case).
+//!
+//! Under these invariants, only four categories can possibly win:
+//!
+//!   - Straight Flush (cat 8)
+//!   - Four of a Kind  (cat 7)
+//!   - Full House      (cat 6)
+//!   - Flush           (cat 5) — guaranteed reachable
+//!
+//! Straight (cat 4) and lower are dominated by the guaranteed Flush
+//! and never need to be evaluated.
+//!
+//! Strategy: compute each candidate independently with category-direct
+//! logic, take the `u16` max. The 9-card direct path-2 evaluator
+//! returns `max(SF, plain Flush)` in one call; on top of that we add
+//! O(13) Quads scan + O(13×13) FH scan over rank counts. **No
+//! 60-combo enumeration.**
 
 use phe_core::{OFFSETS, OFFSET_SHIFT, RANK_BASES};
 use phe_holdem::assets::{LOOKUP, LOOKUP_FLUSH};
 
-use crate::{BOARD_TRIPLES, HOLE_PAIRS};
+/// 10 straight-flush 5-rank windows, descending strength
+/// (royal → wheel). Same constant as `path2::SF_WINDOWS_DESC`,
+/// re-declared here so path 3's hot path doesn't depend on path 2's
+/// module boundary (and any inlining decisions the compiler makes
+/// at it).
+const SF_WINDOWS_DESC: [u16; 10] = [
+    0b1_1111_0000_0000, // T-J-Q-K-A (royal)
+    0b0_1111_1000_0000, // 9-T-J-Q-K
+    0b0_0111_1100_0000, // 8-9-T-J-Q
+    0b0_0011_1110_0000, // 7-8-9-T-J
+    0b0_0001_1111_0000, // 6-7-8-9-T
+    0b0_0000_1111_1000, // 5-6-7-8-9
+    0b0_0000_0111_1100, // 4-5-6-7-8
+    0b0_0000_0011_1110, // 3-4-5-6-7
+    0b0_0000_0001_1111, // 2-3-4-5-6
+    0b1_0000_0000_1111, // A-2-3-4-5 (wheel)
+];
+
+/// Returns max(SF, plain Flush) for the given suit-restricted hole
+/// and board rank bitmasks. Equivalent to `path2::evaluate` but
+/// inlined here so the per-suit pass over hole/board can be folded
+/// into path 3's per-rank pass (avoiding a redundant scan of all
+/// 9 cards).
+#[inline]
+fn sf_or_flush(hole_mask: u16, board_mask: u16) -> u16 {
+    debug_assert!(hole_mask.count_ones() >= 2 && board_mask.count_ones() >= 3);
+    for &window in &SF_WINDOWS_DESC {
+        if (hole_mask & window).count_ones() >= 2
+            && (board_mask & window).count_ones() >= 3
+        {
+            return unsafe { *LOOKUP_FLUSH.get_unchecked(window as usize) };
+        }
+    }
+    let h1 = 1u16 << (15 - hole_mask.leading_zeros());
+    let m2 = hole_mask ^ h1;
+    let h2 = 1u16 << (15 - m2.leading_zeros());
+    let b1 = 1u16 << (15 - board_mask.leading_zeros());
+    let bm2 = board_mask ^ b1;
+    let b2 = 1u16 << (15 - bm2.leading_zeros());
+    let bm3 = bm2 ^ b2;
+    let b3 = 1u16 << (15 - bm3.leading_zeros());
+    let flush_key = h1 | h2 | b1 | b2 | b3;
+    unsafe { *LOOKUP_FLUSH.get_unchecked(flush_key as usize) }
+}
 
 /// Rank-only lookup driven by a pre-summed `rank_key` (the lower 32
-/// bits of `Hand::get_key()`). Skips Hand construction entirely.
-/// Caller must guarantee `rank_key = sum of RANK_BASES[rank] for the
-/// 5 cards`, none of those cards form a flush, and the sum fits in
-/// `u32` (always true for ≤7 cards).
+/// bits of `Hand::get_key()`). Caller must ensure `rank_key` is the
+/// sum of `RANK_BASES[rank]` over the 5 cards forming a non-flush
+/// 5-card hand.
 #[inline]
 fn evaluate_rank_only_from_key(rank_key: u32) -> u16 {
     let rk = rank_key as usize;
@@ -27,68 +83,178 @@ fn evaluate_rank_only_from_key(rank_key: u32) -> u16 {
     }
 }
 
-/// Path-3 entry point.
+/// Returns the highest set bit position (`0..15`) of a non-zero
+/// `u16`, or `None` for `0`. Used to pick the highest rank in a
+/// rank bitmask.
+#[inline]
+fn highest_bit(mask: u16) -> Option<usize> {
+    if mask == 0 {
+        None
+    } else {
+        Some(15 - mask.leading_zeros() as usize)
+    }
+}
+
+/// Per-side rank bitmasks at threshold counts: bit `r` is set iff the
+/// rank has at least the indicated number of cards on that side.
+#[derive(Clone, Copy)]
+struct RankMasks {
+    h_ge_1: u16,
+    h_ge_2: u16,
+    b_ge_1: u16,
+    b_ge_2: u16,
+    b_ge_3: u16,
+}
+
+#[inline]
+fn build_masks(h: &[u8; 13], b: &[u8; 13]) -> RankMasks {
+    let mut m = RankMasks {
+        h_ge_1: 0,
+        h_ge_2: 0,
+        b_ge_1: 0,
+        b_ge_2: 0,
+        b_ge_3: 0,
+    };
+    for r in 0..13 {
+        let hr = h[r];
+        let br = b[r];
+        if hr >= 1 { m.h_ge_1 |= 1u16 << r; }
+        if hr >= 2 { m.h_ge_2 |= 1u16 << r; }
+        if br >= 1 { m.b_ge_1 |= 1u16 << r; }
+        if br >= 2 { m.b_ge_2 |= 1u16 << r; }
+        if br >= 3 { m.b_ge_3 |= 1u16 << r; }
+    }
+    m
+}
+
+/// Best Quads (cat 7) reachable under Omaha's 2+3 rule, or `None`.
+///
+/// 4 cards of rank `r` come from `hole_r_used + board_r_used = 4`
+/// with `hole_r_used ≤ 2`, `board_r_used ≤ 3`. Two reachable cases:
+///
+///   Case A: `h[r] ≥ 1 ∧ b[r] ≥ 3` — board trips + 1 hole; kicker
+///           is the highest non-`r` hole rank.
+///   Case B: `h[r] ≥ 2 ∧ b[r] ≥ 2` — hole pocket pair + board pair;
+///           kicker is the highest non-`r` board rank.
+///
+/// Implemented with bit-mask arithmetic — no per-rank scan loop.
+/// `cand_a | cand_b` identifies all `r` where Quads is reachable;
+/// the highest bit picks the best `r`. Within that `r`, both cases'
+/// kicker candidates are unioned and the highest bit picks the best
+/// kicker (since LOOKUP ranks Quads by `(rank_R, rank_kicker)`
+/// lexicographically).
+#[inline]
+fn check_quads(m: RankMasks) -> Option<u16> {
+    let cand_a = m.h_ge_1 & m.b_ge_3;
+    let cand_b = m.h_ge_2 & m.b_ge_2;
+    let cand = cand_a | cand_b;
+    let r = highest_bit(cand)?;
+    let r_bit = 1u16 << r;
+
+    // Union of kicker candidates from each applicable case.
+    let mut kicker_mask: u16 = 0;
+    if cand_a & r_bit != 0 {
+        kicker_mask |= m.h_ge_1 & !r_bit;
+    }
+    if cand_b & r_bit != 0 {
+        kicker_mask |= m.b_ge_1 & !r_bit;
+    }
+    let kicker = highest_bit(kicker_mask)
+        .expect("kicker mask must be non-empty when quads is reachable");
+
+    let rank_key =
+        4 * RANK_BASES[r] as u32 + RANK_BASES[kicker] as u32;
+    Some(evaluate_rank_only_from_key(rank_key))
+}
+
+/// Best Full House (cat 6) reachable under Omaha's 2+3 rule, or
+/// `None`.
+///
+/// FH has trips of `R1` + pair of `R2` (R1 ≠ R2) using exactly 2 hole
+/// + 3 board. Three composition cases:
+///
+///   I.   `(0, 3, 2, 0)`: board trips R1, hole pocket pair R2.
+///        Needs `b[R1] ≥ 3` AND `h[R2] ≥ 2`.
+///   II.  `(1, 2, 1, 1)`: hole has 1×R1, 1×R2; board has 2×R1, ≥1×R2.
+///        Needs `h[R1] ≥ 1 ∧ b[R1] ≥ 2 ∧ h[R2] ≥ 1 ∧ b[R2] ≥ 1`.
+///   III. `(2, 1, 0, 2)`: hole pocket pair R1; board has ≥1×R1, ≥2×R2.
+///        Needs `h[R1] ≥ 2 ∧ b[R1] ≥ 1 ∧ b[R2] ≥ 2`.
+///
+/// Best FH = max `R1`, then max `R2` (Hold'em FH is ranked by trips
+/// then pair).
+///
+/// Implemented as bit-mask arithmetic: build per-case `R1` candidate
+/// masks, OR them, take the highest bit; for that `R1`, union the
+/// per-case `R2` candidate masks (each gated by whether that case
+/// is applicable to this `R1`), take the highest bit. No per-rank
+/// or per-pair scan loop.
+#[inline]
+fn check_fh(m: RankMasks) -> Option<u16> {
+    let cand_i_r1 = m.b_ge_3;
+    let cand_ii_r1 = m.h_ge_1 & m.b_ge_2;
+    // Case III also requires `b[R1] ≥ 1` so the trips can include
+    // one board card of rank R1 (otherwise h_R1=2 alone gives a
+    // pair, not trips, and we can't add a board R1 from nothing).
+    let cand_iii_r1 = m.h_ge_2 & m.b_ge_1;
+    let r1_mask = cand_i_r1 | cand_ii_r1 | cand_iii_r1;
+    let r1 = highest_bit(r1_mask)?;
+    let r1_bit = 1u16 << r1;
+
+    let mut r2_mask: u16 = 0;
+    if cand_i_r1 & r1_bit != 0 {
+        r2_mask |= m.h_ge_2 & !r1_bit;
+    }
+    if cand_ii_r1 & r1_bit != 0 {
+        r2_mask |= m.h_ge_1 & m.b_ge_1 & !r1_bit;
+    }
+    if cand_iii_r1 & r1_bit != 0 {
+        r2_mask |= m.b_ge_2 & !r1_bit;
+    }
+    let r2 = highest_bit(r2_mask)?;
+
+    let rank_key =
+        3 * RANK_BASES[r1] as u32 + 2 * RANK_BASES[r2] as u32;
+    Some(evaluate_rank_only_from_key(rank_key))
+}
+
+/// Path-3 entry point: max(SF, Quads, FH, Flush).
+///
+/// Single pass over the 9 cards builds per-rank counts AND per-suit
+/// rank bitmasks for the flush suit at once. Then `sf_or_flush`,
+/// `check_quads`, `check_fh` work off pre-built bitmasks.
 #[inline]
 pub(crate) fn evaluate(hole: &[usize; 4], board: &[usize; 5], suit: u8) -> u16 {
     let suit_u = suit as usize;
 
-    // Per-hole-card precomputations.
-    let mut hole_rk = [0u32; 4];
-    let mut hole_inc = [0u8; 4]; // 1 if in flush suit, else 0
-    let mut hole_fb = [0u16; 4]; // (1 << rank) if in suit, else 0
-    for i in 0..4 {
-        let c = hole[i];
-        let rank = c / 4;
-        hole_rk[i] = RANK_BASES[rank] as u32;
-        let in_s = (c & 3) == suit_u;
-        hole_inc[i] = in_s as u8;
-        hole_fb[i] = if in_s { 1u16 << rank } else { 0 };
+    let mut h = [0u8; 13];
+    let mut b = [0u8; 13];
+    let mut hole_mask: u16 = 0;
+    let mut board_mask: u16 = 0;
+    for &c in hole {
+        let r = c / 4;
+        h[r] += 1;
+        if c & 3 == suit_u {
+            hole_mask |= 1u16 << r;
+        }
     }
-    let mut pair_rk = [0u32; 6];
-    let mut pair_inc = [0u8; 6];
-    let mut pair_fb = [0u16; 6];
-    for (idx, &(i, j)) in HOLE_PAIRS.iter().enumerate() {
-        pair_rk[idx] = hole_rk[i].wrapping_add(hole_rk[j]);
-        pair_inc[idx] = hole_inc[i] + hole_inc[j];
-        pair_fb[idx] = hole_fb[i] | hole_fb[j];
+    for &c in board {
+        let r = c / 4;
+        b[r] += 1;
+        if c & 3 == suit_u {
+            board_mask |= 1u16 << r;
+        }
     }
 
-    // Per-board-card precomputations.
-    let mut board_rk = [0u32; 5];
-    let mut board_inc = [0u8; 5];
-    let mut board_fb = [0u16; 5];
-    for i in 0..5 {
-        let c = board[i];
-        let rank = c / 4;
-        board_rk[i] = RANK_BASES[rank] as u32;
-        let in_s = (c & 3) == suit_u;
-        board_inc[i] = in_s as u8;
-        board_fb[i] = if in_s { 1u16 << rank } else { 0 };
+    let mut best = sf_or_flush(hole_mask, board_mask);
+    let masks = build_masks(&h, &b);
+    if let Some(q) = check_quads(masks) {
+        if q > best {
+            best = q;
+        }
     }
-    let mut triple_rk = [0u32; 10];
-    let mut triple_inc = [0u8; 10];
-    let mut triple_fb = [0u16; 10];
-    for (idx, &(a, b, c)) in BOARD_TRIPLES.iter().enumerate() {
-        triple_rk[idx] = board_rk[a]
-            .wrapping_add(board_rk[b])
-            .wrapping_add(board_rk[c]);
-        triple_inc[idx] = board_inc[a] + board_inc[b] + board_inc[c];
-        triple_fb[idx] = board_fb[a] | board_fb[b] | board_fb[c];
-    }
-
-    let mut best: u16 = 0;
-    for pi in 0..6usize {
-        for ti in 0..10usize {
-            // Combo is a 5-card flush iff all 5 cards share `suit`.
-            let r = if pair_inc[pi] + triple_inc[ti] == 5 {
-                let flush_key = pair_fb[pi] | triple_fb[ti];
-                unsafe { *LOOKUP_FLUSH.get_unchecked(flush_key as usize) }
-            } else {
-                evaluate_rank_only_from_key(pair_rk[pi].wrapping_add(triple_rk[ti]))
-            };
-            if r > best {
-                best = r;
-            }
+    if let Some(f) = check_fh(masks) {
+        if f > best {
+            best = f;
         }
     }
     best

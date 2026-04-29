@@ -70,6 +70,10 @@ fn top_3_bits(mask: u16) -> u16 {
 }
 
 /// Path-2 entry point.
+///
+/// Marked `#[inline]` because path 3 also calls this directly to
+/// fold the SF / plain-flush branch into its larger
+/// `max(SF, Quads, FH, Flush)` decision.
 #[inline]
 pub(crate) fn evaluate(hole: &[usize; 4], board: &[usize; 5], suit: u8) -> u16 {
     let suit_u = suit as usize;
