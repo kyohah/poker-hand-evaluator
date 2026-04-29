@@ -35,7 +35,7 @@
 //! 5-card Hand is built as `hole_pair + board_partial` (one Hand
 //! addition) instead of three `add_card` calls per combo.
 
-use phe_core::{Hand, OFFSETS, OFFSET_SHIFT};
+use phe_core::{Hand, OFFSETS, OFFSET_SHIFT, RANK_BASES};
 use phe_holdem::assets::{LOOKUP, LOOKUP_FLUSH};
 use phe_holdem::HighRule;
 
@@ -214,6 +214,69 @@ fn evaluate_rank_only(hand: &Hand) -> u16 {
     }
 }
 
+/// Rank-only lookup driven by a pre-summed `rank_key` (the lower 32
+/// bits of `Hand::get_key()`). Skips Hand construction entirely.
+/// Caller must guarantee `rank_key = sum of RANK_BASES[rank] for the
+/// 5 cards`, that none of those cards form a flush, and that the
+/// sum fits in u32 (always true for ≤7 cards).
+#[inline]
+fn evaluate_rank_only_from_key(rank_key: u32) -> u16 {
+    let rk = rank_key as usize;
+    unsafe {
+        let offset = *OFFSETS.get_unchecked(rk >> OFFSET_SHIFT) as usize;
+        *LOOKUP.get_unchecked(rk.wrapping_add(offset))
+    }
+}
+
+/// Path 1 inner: no flush possible across the entire 9-card layout.
+///
+/// Bypasses the Hand build entirely. Each combo's `rank_key` is the
+/// u32 sum of `RANK_BASES[rank]` over the 5 chosen cards; we
+/// pre-sum the 6 hole-pair partials and the 10 board-triple
+/// partials once, then the inner loop just does
+/// `pair_rk + triple_rk` (one `wrapping_add`) before the OFFSETS /
+/// LOOKUP indirections.
+#[inline]
+fn evaluate_no_flush_path(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
+    // Pre-sum hole-pair rank keys (6 of them).
+    let hole_rk: [u32; 4] = [
+        RANK_BASES[hole[0] / 4] as u32,
+        RANK_BASES[hole[1] / 4] as u32,
+        RANK_BASES[hole[2] / 4] as u32,
+        RANK_BASES[hole[3] / 4] as u32,
+    ];
+    let mut pair_rks = [0u32; 6];
+    for (idx, &(i, j)) in HOLE_PAIRS.iter().enumerate() {
+        pair_rks[idx] = hole_rk[i].wrapping_add(hole_rk[j]);
+    }
+
+    // Pre-sum board-triple rank keys (10 of them).
+    let board_rk: [u32; 5] = [
+        RANK_BASES[board[0] / 4] as u32,
+        RANK_BASES[board[1] / 4] as u32,
+        RANK_BASES[board[2] / 4] as u32,
+        RANK_BASES[board[3] / 4] as u32,
+        RANK_BASES[board[4] / 4] as u32,
+    ];
+    let mut triple_rks = [0u32; 10];
+    for (idx, &(a, b, c)) in BOARD_TRIPLES.iter().enumerate() {
+        triple_rks[idx] = board_rk[a]
+            .wrapping_add(board_rk[b])
+            .wrapping_add(board_rk[c]);
+    }
+
+    let mut best: u16 = 0;
+    for &pair_rk in &pair_rks {
+        for &triple_rk in &triple_rks {
+            let r = evaluate_rank_only_from_key(pair_rk.wrapping_add(triple_rk));
+            if r > best {
+                best = r;
+            }
+        }
+    }
+    best
+}
+
 /// Inner loop over all 60 (hole_pair, board_partial) combos.
 #[inline]
 fn evaluate_full_60<F>(hole: &[usize; 4], board_partials: &[Hand; 10], eval: F) -> u16
@@ -313,9 +376,8 @@ impl OmahaHighRule {
     pub fn evaluate(hole_cards: &[usize; 4], board: &[usize; 5]) -> u16 {
         match flush_suit(hole_cards, board) {
             None => {
-                // Path 1: no flush possible → rank-only inner.
-                let board_partials = build_board_partials(board);
-                evaluate_full_60(hole_cards, &board_partials, evaluate_rank_only)
+                // Path 1: no flush possible → Hand-free rank-only inner.
+                evaluate_no_flush_path(hole_cards, board)
             }
             Some(s) => {
                 if board_has_no_pair(board) {
