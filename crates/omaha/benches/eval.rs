@@ -12,9 +12,20 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use phe_core::Hand;
 use phe_holdem::HighRule;
 use phe_omaha::{flush_possible, OmahaHighRule};
+use std::sync::OnceLock;
 
 const NUM_FIXTURES: usize = 10_000;
 const SEED: u64 = 0xDEAD_BEEF_CAFE_BABE;
+
+/// 10K (hole, board) fixtures, generated **exactly once** for the
+/// entire bench process. Both `optimized` and `naive` benches read
+/// from the same slice, and `b.iter` just loops over it — no
+/// regeneration per iteration.
+static FIXTURES: OnceLock<Vec<([usize; 4], [usize; 5])>> = OnceLock::new();
+
+fn fixtures() -> &'static [([usize; 4], [usize; 5])] {
+    FIXTURES.get_or_init(generate_fixtures)
+}
 
 /// Linear-congruential PRNG (PCG-style constants). Enough randomness
 /// for fixture generation; reproducibility comes from the fixed seed.
@@ -79,13 +90,10 @@ fn naive_eval(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
 }
 
 fn bench_random_10k(c: &mut Criterion) {
-    let fixtures = generate_fixtures();
+    let f = fixtures();
 
     // Report fast-path vs full-path split so wins are interpretable.
-    let flush_count = fixtures
-        .iter()
-        .filter(|(h, b)| flush_possible(h, b))
-        .count();
+    let flush_count = f.iter().filter(|(h, b)| flush_possible(h, b)).count();
     eprintln!(
         "fixtures: {} total | rank-only fast path: {} ({:.1}%) | full path: {} ({:.1}%)",
         NUM_FIXTURES,
@@ -100,7 +108,7 @@ fn bench_random_10k(c: &mut Criterion) {
     group.bench_function("optimized", |b| {
         b.iter(|| {
             let mut acc: u32 = 0;
-            for (hole, board) in &fixtures {
+            for (hole, board) in f {
                 acc = acc.wrapping_add(OmahaHighRule::evaluate(hole, board) as u32);
             }
             black_box(acc)
@@ -110,7 +118,7 @@ fn bench_random_10k(c: &mut Criterion) {
     group.bench_function("naive", |b| {
         b.iter(|| {
             let mut acc: u32 = 0;
-            for (hole, board) in &fixtures {
+            for (hole, board) in f {
                 acc = acc.wrapping_add(naive_eval(hole, board) as u32);
             }
             black_box(acc)
