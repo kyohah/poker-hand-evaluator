@@ -136,6 +136,61 @@ pub fn board_no_straight(board: &[usize; 5]) -> bool {
     true
 }
 
+/// Returns the maximum-possible Hold'em-high category bits for a
+/// 5-card combo formed from `(h1, h2)` plus 3 board cards, given
+/// per-suit board card counts and structural board flags.
+///
+/// The bound is **safe**: it may over-estimate but must never
+/// under-estimate the true max. Used by the branch-and-bound prune
+/// in `evaluate` to skip hole pairs that can't beat the running
+/// best's category.
+///
+/// Decision tree (high → low):
+///   1. Suited pair AND ≥3 board in that suit → 8 (Straight Flush)
+///   2. Pocket pair (same rank in hole) AND board has a pair → 7 (Quads)
+///   3. Pocket pair, no board pair                            → 3 (Trips)
+///   4. Mixed-rank, board has a pair                          → 6 (Full House)
+///   5. Mixed-rank, no board pair, straight reachable         → 4 (Straight)
+///   6. Mixed-rank, no board pair, no straight reachable      → 2 (Two Pair)
+#[inline]
+pub fn upper_bound_category(
+    h1: usize,
+    h2: usize,
+    board_suit_counts: &[u8; 4],
+    board_has_pair: bool,
+    no_straight: bool,
+) -> u8 {
+    let r1 = h1 / 4;
+    let r2 = h2 / 4;
+    let s1 = h1 & 3;
+    let s2 = h2 & 3;
+
+    // Case 1: Flush / SF.
+    if s1 == s2 && board_suit_counts[s1] >= 3 {
+        return 8;
+    }
+
+    // Case 2/3: pocket pair (hole cards same rank).
+    if r1 == r2 {
+        if board_has_pair {
+            return 7;
+        }
+        return 3;
+    }
+
+    // Case 4: mixed-rank with paired board.
+    if board_has_pair {
+        return 6;
+    }
+
+    // Case 5/6: mixed-rank, no pair on board.
+    if no_straight {
+        2
+    } else {
+        4
+    }
+}
+
 /// Builds the 10 partial Hands for each board-triple selection.
 #[inline]
 fn build_board_partials(board: &[usize; 5]) -> [Hand; 10] {
