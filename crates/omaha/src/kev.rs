@@ -116,6 +116,78 @@ pub fn kev_rank_to_packed(kev_rank: u16) -> u16 {
     }
 }
 
+// =============================================================================
+// Decomposition variants for the perf investigation.
+//
+// The naive `evaluate_kev` path runs ~2× slower than the optimized
+// path. To find the root cause we expose 4 variants here and bench
+// each separately:
+//
+//   variant_0: full kernel (same as eval_5cards_kev)
+//   variant_1: pre-summed OR / AND / prime partials (skip per-combo
+//              arithmetic; isolate the LOOKUP / hash chain cost)
+//   variant_2: always-flush path only (FLUSHES lookup, skip everything
+//              else; minimum-cost Kev call)
+//   variant_3: skip flush + unique5 checks entirely; always run prime
+//              product + find_fast + HASH_VALUES (isolate the hash
+//              function cost specifically)
+//
+// All variants are public so the bench harness can wire them up
+// without exporting the underlying tables.
+// =============================================================================
+
+/// Variant 0: identical to `eval_5cards_kev`, exported for direct
+/// bench harness use.
+#[inline]
+pub fn eval_5cards_kev_v0(c1: u32, c2: u32, c3: u32, c4: u32, c5: u32) -> u16 {
+    eval_5cards_kev(c1, c2, c3, c4, c5)
+}
+
+/// Variant 1: precomputed OR / AND / prime partials for the hole pair
+/// and board triple. Caller pre-sums the 5-card data into 3 u32s and
+/// 1 u32 prime, the kernel just combines them.
+#[inline]
+pub fn eval_5cards_kev_v1_precomp(
+    pair_or: u32,
+    pair_and: u32,
+    pair_prime: u32,
+    triple_or: u32,
+    triple_and: u32,
+    triple_prime: u32,
+) -> u16 {
+    let q = ((pair_or | triple_or) >> 16) as usize;
+    if (pair_and & triple_and & 0xf000) != 0 {
+        return FLUSHES[q];
+    }
+    let s = UNIQUE5[q];
+    if s != 0 {
+        return s;
+    }
+    HASH_VALUES[find_fast(pair_prime.wrapping_mul(triple_prime))]
+}
+
+/// Variant 2: assume hand is a 5-flush; skip everything except
+/// `FLUSHES[q]`. **Returns wrong values for non-flush hands.** Used
+/// only to measure the minimum per-call cost of the Kev path.
+#[inline]
+pub fn eval_5cards_kev_v2_always_flush(c1: u32, c2: u32, c3: u32, c4: u32, c5: u32) -> u16 {
+    let q = ((c1 | c2 | c3 | c4 | c5) >> 16) as usize;
+    FLUSHES[q]
+}
+
+/// Variant 3: assume hand is non-flush, non-unique5 (i.e. has at
+/// least one pair); always run prime product + `find_fast` +
+/// `HASH_VALUES`. **Returns wrong values for flush / unique5 hands.**
+#[inline]
+pub fn eval_5cards_kev_v3_always_hash(c1: u32, c2: u32, c3: u32, c4: u32, c5: u32) -> u16 {
+    let prime = (c1 & 0xff)
+        .wrapping_mul(c2 & 0xff)
+        .wrapping_mul(c3 & 0xff)
+        .wrapping_mul(c4 & 0xff)
+        .wrapping_mul(c5 & 0xff);
+    HASH_VALUES[find_fast(prime)]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

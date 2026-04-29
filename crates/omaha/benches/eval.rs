@@ -12,7 +12,8 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use phe_core::Hand;
 use phe_holdem::HighRule;
 use phe_omaha::{
-    board_has_no_pair, board_no_straight, evaluate_kev, flush_possible, flush_suit,
+    board_has_no_pair, board_no_straight, evaluate_kev, evaluate_kev_v1,
+    evaluate_kev_v2_always_flush, evaluate_kev_v3_always_hash, flush_possible, flush_suit,
     OmahaHighRule,
 };
 use std::sync::OnceLock;
@@ -232,6 +233,35 @@ fn bench_random_10k(c: &mut Criterion) {
             let mut acc: u32 = 0;
             for (hole, board) in f {
                 acc = acc.wrapping_add(evaluate_kev(hole, board) as u32);
+            }
+            black_box(acc)
+        })
+    });
+
+    // Decomposition variants for the 2× slowdown root-cause analysis.
+    group.bench_function("kev_v1_precomp", |b| {
+        b.iter(|| {
+            let mut acc: u32 = 0;
+            for (hole, board) in f {
+                acc = acc.wrapping_add(evaluate_kev_v1(hole, board) as u32);
+            }
+            black_box(acc)
+        })
+    });
+    group.bench_function("kev_v2_always_flush", |b| {
+        b.iter(|| {
+            let mut acc: u32 = 0;
+            for (hole, board) in f {
+                acc = acc.wrapping_add(evaluate_kev_v2_always_flush(hole, board) as u32);
+            }
+            black_box(acc)
+        })
+    });
+    group.bench_function("kev_v3_always_hash", |b| {
+        b.iter(|| {
+            let mut acc: u32 = 0;
+            for (hole, board) in f {
+                acc = acc.wrapping_add(evaluate_kev_v3_always_hash(hole, board) as u32);
             }
             black_box(acc)
         })

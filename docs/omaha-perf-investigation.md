@@ -316,6 +316,72 @@ keeps the lookup chain to a single `OFFSETS + LOOKUP` indirection per
 hand, which beats Cactus-Kev's prime-product hash even with the
 larger 145 KB table partly spilling to L2.
 
+### Decomposing the Kev slowdown
+
+To pin down which part of the Kev kernel costs the most, four
+variants were added and bench'd side-by-side. Per-combo numbers (=
+total / 60 / 10000-fixture batch size):
+
+| variant       | per combo | what it does                                         |
+|---------------|----------:|------------------------------------------------------|
+| optimized     | 1.4 ns    | 1 `wrapping_add` + chained `OFFSETS` → `LOOKUP`       |
+| naive         | 3.0 ns    | optimized but with `Hand` build per combo            |
+| **kev_v2**    | **1.1 ns**| just `OR | AND-check | FLUSHES[q]` (always-flush)    |
+| kev_v3        | 2.4 ns    | prime mul + `find_fast` + `HASH_VALUES` (no branches) |
+| kev_v1        | 4.5 ns    | full kernel with pre-summed pair/triple partials      |
+| kev (full)    | 5.0 ns    | full kernel, no precomp                               |
+
+Three **load-bearing observations** fall out:
+
+**1. The Kev *kernel itself* is not the problem.** `kev_v2` at
+1.1 ns/combo is *faster* than optimized's 1.4 ns/combo — Cactus-Kev's
+flush-only path (4 ORs + 4 ANDs in parallel + 1 single-step lookup
+into 16 KB `FLUSHES`) actually beats our chained `OFFSETS → LOOKUP`
+indirection. Modern CPUs absorb the parallel-arithmetic cost via
+out-of-order execution, while the perfect-hash chain is
+latency-limited (each load waits for the previous to retire).
+
+**2. The non-flush `HASH_VALUES` path is ~70% slower than perfect-hash
+LOOKUP.** `kev_v3` (skip both branches; always compute prime + run
+`find_fast` + `HASH_VALUES`) costs 2.4 ns/combo vs optimized's
+1.4 ns/combo. The chain `mask × mask × mask × mask × mask →
+find_fast (5-step bit-mix) → HASH_VALUES[index]` is genuinely longer
+than `RANK_BASES sum → OFFSETS → LOOKUP`. **This** is what makes
+4.7's perfect-hash design beat Cactus-Kev's 1977-vintage prime hash
+on identical hardware.
+
+**3. Branches cost ~1.5-2 ns/combo on random Omaha hands.** Going
+from `kev_v3` (no branches, 2.4 ns) to full `kev` (2 branches, 5.0
+ns) adds 2.6 ns/combo. That's the **branch-mispredict tax** for two
+data-dependent ifs inside the inner loop:
+
+  - `is_flush > 0`: ~5-10% true on random combos. Predictor learns
+    "almost always false" but mispredicts on the rare flush.
+  - `unique5[q] != 0`: ~20% true (no-pair non-flush 5-card hands).
+    Pattern is data-driven (depends on the rank-bit OR pattern q),
+    so the predictor *cannot* learn it.
+
+A modern x86 mispredict costs ~10-20 cycles. With ~60 evals × ~25%
+mispredict-able branches × ~15 cycles = ~225 cycles ≈ 75 ns wasted
+per Omaha call. Empirically the branch cost is ~156 ns (kev_v3 →
+kev_full delta × 60), so each branch averages to a couple cycles of
+wasted work — consistent with the prediction model.
+
+**Implications**:
+
+- A Cactus-Kev *flush-only* inner could replace path 2's current
+  `LOOKUP_FLUSH` direct path; `kev_v2`'s 1.1 ns/combo is faster than
+  whatever path 2 currently does. But path 2 is only 20% of random
+  hands, so the full-pipeline win is small (single-digit % overall).
+  Probably not worth the code split.
+- The non-flush path is fundamentally cheaper with the b-inary 4.7
+  perfect-hash than with Cactus-Kev's prime hash. Switching kernels
+  is a strict regression for the 80% of hands that go non-flush.
+- If you wanted Cactus-Kev to win, you'd need either branch-free 5-
+  card eval (impossible while keeping correctness — the algorithm
+  fundamentally branches on suit / rank duplicate structure) or a
+  workload where `unique5` is predictable (not random Omaha).
+
 This is consistent with the article's own measurements (section 4.6
 vs 4.7): Cactus-Kev random-access is 9.8 M/s, b-inary 4.7 is
 244 M/s — a 25× gap on **identical hardware**, dominated by kernel

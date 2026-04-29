@@ -40,7 +40,11 @@ use phe_holdem::assets::{LOOKUP, LOOKUP_FLUSH};
 
 mod kev;
 mod kev_tables;
-pub use kev::{eval_5cards_kev, kev_rank_to_packed, KEV_CARDS};
+pub use kev::{
+    eval_5cards_kev, eval_5cards_kev_v0, eval_5cards_kev_v1_precomp,
+    eval_5cards_kev_v2_always_flush, eval_5cards_kev_v3_always_hash, kev_rank_to_packed,
+    KEV_CARDS,
+};
 
 /// Omaha high rule.
 ///
@@ -403,6 +407,103 @@ fn evaluate_flush_dominate(
         }
     }
     best
+}
+
+/// **Experimental v1**: Cactus-Kev with pre-summed OR/AND/prime partials.
+///
+/// Pre-computes hole-pair (6) and board-triple (10) partials of the
+/// `c1|c2|...`, `c1&c2&...`, and `(c1&0xff) * (c2&0xff) * ...` reductions
+/// outside the inner loop. Used to isolate per-combo arithmetic cost in
+/// the Cactus-Kev kernel for the perf investigation.
+pub fn evaluate_kev_v1(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
+    let kh: [u32; 4] = [
+        KEV_CARDS[hole[0]], KEV_CARDS[hole[1]], KEV_CARDS[hole[2]], KEV_CARDS[hole[3]],
+    ];
+    let kb: [u32; 5] = [
+        KEV_CARDS[board[0]], KEV_CARDS[board[1]], KEV_CARDS[board[2]],
+        KEV_CARDS[board[3]], KEV_CARDS[board[4]],
+    ];
+
+    // 6 hole-pair partials
+    let mut pair_or = [0u32; 6];
+    let mut pair_and = [0u32; 6];
+    let mut pair_prime = [0u32; 6];
+    for (idx, &(i, j)) in HOLE_PAIRS.iter().enumerate() {
+        pair_or[idx] = kh[i] | kh[j];
+        pair_and[idx] = kh[i] & kh[j];
+        pair_prime[idx] = (kh[i] & 0xff).wrapping_mul(kh[j] & 0xff);
+    }
+    // 10 board-triple partials
+    let mut tri_or = [0u32; 10];
+    let mut tri_and = [0u32; 10];
+    let mut tri_prime = [0u32; 10];
+    for (idx, &(a, b, c)) in BOARD_TRIPLES.iter().enumerate() {
+        tri_or[idx] = kb[a] | kb[b] | kb[c];
+        tri_and[idx] = kb[a] & kb[b] & kb[c];
+        tri_prime[idx] = (kb[a] & 0xff)
+            .wrapping_mul(kb[b] & 0xff)
+            .wrapping_mul(kb[c] & 0xff);
+    }
+
+    let mut best_kev: u16 = u16::MAX;
+    for pi in 0..6 {
+        for ti in 0..10 {
+            let r = eval_5cards_kev_v1_precomp(
+                pair_or[pi], pair_and[pi], pair_prime[pi],
+                tri_or[ti], tri_and[ti], tri_prime[ti],
+            );
+            if r < best_kev {
+                best_kev = r;
+            }
+        }
+    }
+    kev_rank_to_packed(best_kev)
+}
+
+/// **Experimental v2**: always-flush variant. Returns wrong answers
+/// (it just calls `FLUSHES[q]` per combo regardless of whether the
+/// combo is actually a flush). Used to measure the minimum-cost
+/// Cactus-Kev path's contribution to total time.
+pub fn evaluate_kev_v2_always_flush(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
+    let kh: [u32; 4] = [
+        KEV_CARDS[hole[0]], KEV_CARDS[hole[1]], KEV_CARDS[hole[2]], KEV_CARDS[hole[3]],
+    ];
+    let kb: [u32; 5] = [
+        KEV_CARDS[board[0]], KEV_CARDS[board[1]], KEV_CARDS[board[2]],
+        KEV_CARDS[board[3]], KEV_CARDS[board[4]],
+    ];
+    let mut best_kev: u16 = u16::MAX;
+    for &(i, j) in &HOLE_PAIRS {
+        let ki = kh[i]; let kj = kh[j];
+        for &(a, b, c) in &BOARD_TRIPLES {
+            let r = eval_5cards_kev_v2_always_flush(ki, kj, kb[a], kb[b], kb[c]);
+            if r < best_kev { best_kev = r; }
+        }
+    }
+    best_kev
+}
+
+/// **Experimental v3**: skip flush + unique5 checks; always run the
+/// prime product + `find_fast` + `HASH_VALUES` chain. Wrong answers
+/// for flush / unique5 hands. Measures the cost of Cactus-Kev's
+/// imperfect-hash branch specifically.
+pub fn evaluate_kev_v3_always_hash(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
+    let kh: [u32; 4] = [
+        KEV_CARDS[hole[0]], KEV_CARDS[hole[1]], KEV_CARDS[hole[2]], KEV_CARDS[hole[3]],
+    ];
+    let kb: [u32; 5] = [
+        KEV_CARDS[board[0]], KEV_CARDS[board[1]], KEV_CARDS[board[2]],
+        KEV_CARDS[board[3]], KEV_CARDS[board[4]],
+    ];
+    let mut best_kev: u16 = u16::MAX;
+    for &(i, j) in &HOLE_PAIRS {
+        let ki = kh[i]; let kj = kh[j];
+        for &(a, b, c) in &BOARD_TRIPLES {
+            let r = eval_5cards_kev_v3_always_hash(ki, kj, kb[a], kb[b], kb[c]);
+            if r < best_kev { best_kev = r; }
+        }
+    }
+    best_kev
 }
 
 /// **Experimental** Cactus-Kev based evaluator for Omaha high.
