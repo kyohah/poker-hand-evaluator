@@ -12,7 +12,8 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use phe_core::Hand;
 use phe_holdem::HighRule;
 use phe_omaha::{
-    board_has_no_pair, board_no_straight, flush_possible, flush_suit, OmahaHighRule,
+    board_has_no_pair, board_no_straight, evaluate_kev, flush_possible, flush_suit,
+    OmahaHighRule,
 };
 use std::sync::OnceLock;
 
@@ -219,6 +220,18 @@ fn bench_random_10k(c: &mut Criterion) {
             let mut acc: u32 = 0;
             for (hole, board) in f {
                 acc = acc.wrapping_add(naive_eval(hole, board) as u32);
+            }
+            black_box(acc)
+        })
+    });
+
+    // Cactus-Kev experimental path: 60-combo enumeration with the
+    // ~49 KB Kev tables instead of the 145 KB phe-holdem LOOKUP.
+    group.bench_function("kev", |b| {
+        b.iter(|| {
+            let mut acc: u32 = 0;
+            for (hole, board) in f {
+                acc = acc.wrapping_add(evaluate_kev(hole, board) as u32);
             }
             black_box(acc)
         })

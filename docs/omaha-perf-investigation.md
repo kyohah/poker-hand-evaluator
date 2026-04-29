@@ -276,6 +276,58 @@ Key takeaways relevant to Omaha:
    global max-of-9 violates the must-use-2 rule (e.g. royal flush all
    on board with no matching hole hearts).
 
+## Empirical: Cactus-Kev kernel switch tested, **net loss**
+
+Implemented the Cactus-Kev kernel switch (recommendation #1) as a
+side-by-side path (`evaluate_kev` in `crates/omaha/src/lib.rs`,
+backed by `crates/omaha/src/kev.rs` + `kev_tables.rs` lifted verbatim
+from upstream). Equivalence: 100,000 random hands plus 11 structural
+corner cases all match the production `OmahaHighRule::evaluate`
+output. So the implementation is correct.
+
+Bench (criterion `--quick`, 10K random fixtures, same machine):
+
+| variant   | total      | ns/eval | vs optimized |
+|-----------|-----------:|--------:|-------------:|
+| optimized | 1.37 ms    | 137     | —            |
+| naive     | 1.95 ms    | 195     | +43% slower  |
+| **kev**   | **2.80 ms**| **280** | **+105% slower** |
+
+**Why**: turns out the cache argument was the wrong frame for Omaha.
+Per-combo instruction count is what dominates here, not table size.
+
+| step           | optimized path 1                              | kev kernel |
+|----------------|-----------------------------------------------|------------|
+| pre-compute    | 4-card hole rk + 5-card board rk              | none       |
+| per combo arith | 1 `wrapping_add` (`pair_rk + triple_rk`)      | 4 OR + 4 AND + 1 shift + 5 mask |
+| per combo lookups | 2 chained (`OFFSETS` then `LOOKUP`)          | 1-3 (FLUSHES / UNIQUE5 / HASH_VALUES + find_fast hash) |
+
+Our optimized path 1 reduces each of 60 combos to ~3 instructions
+(`add` + 2 lookups) plus pre-summed partials hoisted out of the inner.
+The Cactus-Kev kernel does ~10 instructions per combo just to compute
+`q` and the flush check, before any lookup. Even when its tables fit
+L1d, it ends up doing 2-3× the per-combo work.
+
+Lesson: **a smaller table is only a win if the kernel is at least as
+cheap as the larger-table kernel.** The b-inary 4.7 perfect-hash
+keeps the lookup chain to a single `OFFSETS + LOOKUP` indirection per
+hand, which beats Cactus-Kev's prime-product hash even with the
+larger 145 KB table partly spilling to L2.
+
+This is consistent with the article's own measurements (section 4.6
+vs 4.7): Cactus-Kev random-access is 9.8 M/s, b-inary 4.7 is
+244 M/s — a 25× gap on **identical hardware**, dominated by kernel
+instruction count, not by cache.
+
+The `kev` module stays in the tree because:
+- It's a clean, tested 5-card kernel that may be useful for other
+  variants (5-card draw / 2-7 lowball / Razz, where the eval is on a
+  fixed 5-card hand and per-call instruction count of ~10 ops is
+  acceptable).
+- The `kev_rank_to_packed` conversion is the bridge if anyone wants
+  to call it from existing packed-u16 code.
+- The 100K random-hand cross-check is a useful regression gate.
+
 ## Updated take on the user's target
 
 - "**Hold'em vs Omaha: 6× → 3× slowdown**" calibration:

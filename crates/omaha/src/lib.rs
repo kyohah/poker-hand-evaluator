@@ -38,6 +38,10 @@
 use phe_core::{OFFSETS, OFFSET_SHIFT, RANK_BASES};
 use phe_holdem::assets::{LOOKUP, LOOKUP_FLUSH};
 
+mod kev;
+mod kev_tables;
+pub use kev::{eval_5cards_kev, kev_rank_to_packed, KEV_CARDS};
+
 /// Omaha high rule.
 ///
 /// `Strength = u16` (higher = stronger), reusing the Hold'em packing
@@ -399,6 +403,47 @@ fn evaluate_flush_dominate(
         }
     }
     best
+}
+
+/// **Experimental** Cactus-Kev based evaluator for Omaha high.
+///
+/// Uses the ~49 KB Kev tables (`HASH_*`, `FLUSHES`, `UNIQUE5`) instead
+/// of `phe-holdem`'s 145 KB perfect-hash, on the theory that the
+/// smaller working set fits L1d and pays off across the 60-combo
+/// inner loop. Behaviorally identical to [`OmahaHighRule::evaluate`];
+/// pin the equivalence via the integration tests in
+/// `tests/kev_equivalence.rs`.
+///
+/// Convention: takes the **min** of 60 Kev ranks (smaller = stronger
+/// in the Kev convention) and converts once at the end via
+/// [`kev::kev_rank_to_packed`].
+pub fn evaluate_kev(hole: &[usize; 4], board: &[usize; 5]) -> u16 {
+    let kh: [u32; 4] = [
+        KEV_CARDS[hole[0]],
+        KEV_CARDS[hole[1]],
+        KEV_CARDS[hole[2]],
+        KEV_CARDS[hole[3]],
+    ];
+    let kb: [u32; 5] = [
+        KEV_CARDS[board[0]],
+        KEV_CARDS[board[1]],
+        KEV_CARDS[board[2]],
+        KEV_CARDS[board[3]],
+        KEV_CARDS[board[4]],
+    ];
+
+    let mut best_kev: u16 = u16::MAX;
+    for &(i, j) in &HOLE_PAIRS {
+        let ki = kh[i];
+        let kj = kh[j];
+        for &(a, b, c) in &BOARD_TRIPLES {
+            let r = eval_5cards_kev(ki, kj, kb[a], kb[b], kb[c]);
+            if r < best_kev {
+                best_kev = r;
+            }
+        }
+    }
+    kev_rank_to_packed(best_kev)
 }
 
 impl OmahaHighRule {
