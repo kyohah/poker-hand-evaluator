@@ -22,8 +22,10 @@
 //! O(13) Quads scan + O(13×13) FH scan over rank counts. **No
 //! 60-combo enumeration.**
 
-use phe_core::{OFFSETS, OFFSET_SHIFT, RANK_BASES};
-use phe_holdem::assets::{LOOKUP, LOOKUP_FLUSH};
+use phe_core::RANK_BASES;
+use phe_holdem::assets::LOOKUP_FLUSH;
+
+use crate::lookup_5card::{LOOKUP_5C, OFFSETS_5C, OFFSET_SHIFT_5C};
 
 /// 10 straight-flush 5-rank windows, descending strength
 /// (royal → wheel). Same constant as `path2::SF_WINDOWS_DESC`,
@@ -72,14 +74,19 @@ fn sf_or_flush(hole_mask: u16, board_mask: u16) -> u16 {
 
 /// Rank-only lookup driven by a pre-summed `rank_key` (the lower 32
 /// bits of `Hand::get_key()`). Caller must ensure `rank_key` is the
-/// sum of `RANK_BASES[rank]` over the 5 cards forming a non-flush
+/// sum of `RANK_BASES[rank]` over **5** cards forming a non-flush
 /// 5-card hand.
+///
+/// Uses the compact 5-card-only perfect-hash tables in
+/// `lookup_5card` (~32 KB total → fits Alder Lake P-core L1d), as
+/// opposed to the production 5/6/7-card `phe-core::OFFSETS` +
+/// `phe-holdem-assets::LOOKUP` (~192 KB).
 #[inline]
 fn evaluate_rank_only_from_key(rank_key: u32) -> u16 {
     let rk = rank_key as usize;
     unsafe {
-        let offset = *OFFSETS.get_unchecked(rk >> OFFSET_SHIFT) as usize;
-        *LOOKUP.get_unchecked(rk.wrapping_add(offset))
+        let offset = *OFFSETS_5C.get_unchecked(rk >> OFFSET_SHIFT_5C) as usize;
+        *LOOKUP_5C.get_unchecked(rk.wrapping_add(offset))
     }
 }
 

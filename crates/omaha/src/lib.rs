@@ -31,6 +31,7 @@
 
 mod kev;
 mod kev_tables;
+mod lookup_5card;
 mod path1;
 mod path2;
 mod path3;

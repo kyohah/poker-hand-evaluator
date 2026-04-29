@@ -19,3 +19,7 @@ path = "src/bin/gen-deuce-seven-lookup.rs"
 [[bin]]
 name = "gen-omaha-noflush-lookup"
 path = "src/bin/gen-omaha-noflush-lookup.rs"
+
+[[bin]]
+name = "gen-5card-tables"
+path = "src/bin/gen_5card_tables.rs"
