@@ -3,5 +3,9 @@
 version = 4
 
 [[package]]
+name = "phe-core"
+version = "0.1.0"
+
+[[package]]
 name = "poker-hand-evaluator"
 version = "0.1.0"
