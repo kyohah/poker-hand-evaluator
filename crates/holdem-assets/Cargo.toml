@@ -1,0 +1,10 @@
+[package]
+name = "phe-holdem-assets"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Hold'em high lookup tables (LOOKUP, LOOKUP_FLUSH) and heads-up win frequency table"
+
+[dependencies]

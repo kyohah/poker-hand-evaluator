@@ -1,0 +1,12 @@
+[package]
+name = "phe-holdem"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Hold'em high evaluator (5-7 cards) on top of phe-core"
+
+[dependencies]
+phe-core = { path = "../core" }
+phe-holdem-assets = { path = "../holdem-assets" }
