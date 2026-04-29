@@ -16,3 +16,11 @@ pub use enumerate::enumerate_hand_category;
 pub use eval::HighRule;
 pub use heads_up::heads_up_win_frequency;
 pub use parse::parse_hand;
+
+/// Raw lookup tables (`LOOKUP`, `LOOKUP_FLUSH`, `HEADS_UP_WIN_FREQUENCY`).
+///
+/// Re-exported so downstream callers (notably `phe-omaha`'s suit-aware
+/// fast paths and `poker-cuda-solver`'s GPU equity code) can build
+/// device-side or specialised access without taking a direct
+/// dependency on `phe-holdem-assets`.
+pub use phe_holdem_assets as assets;
