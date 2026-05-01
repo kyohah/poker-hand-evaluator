@@ -37,7 +37,11 @@ struct Aligned<T: ?Sized> {
 // Big PLO4 tables — generated at build time, included from OUT_DIR.
 // ------------------------------------------------------------------
 
+/// Number of `u16` entries in [`FLUSH_PLO4`] — `1365 * 1365 * 1820`-style
+/// upper bound for the (board_hash, hole_hash) flush-pattern key space.
 pub const FLUSH_PLO4_LEN: usize = 4_099_095;
+/// Number of `u16` entries in [`NOFLUSH_PLO4`] — `6175 * 1820` plus a
+/// few hundred entries of slack from the multiset hash construction.
 pub const NOFLUSH_PLO4_LEN: usize = 11_238_500;
 
 const FLUSH_PLO4_BYTES: usize = FLUSH_PLO4_LEN * 2;
@@ -78,7 +82,10 @@ pub static NOFLUSH_PLO4: &[u16; NOFLUSH_PLO4_LEN] =
 // crates want them (e.g., the `phe-omaha` flush_5card module).
 // ------------------------------------------------------------------
 
+/// Number of `u16` entries in [`NO_FLUSH_5`] — distinct multisets of
+/// 5 cards out of 13 ranks (`hash_quinary` codomain).
 pub const NO_FLUSH_5_LEN: usize = 6175;
+/// Number of `u16` entries in [`FLUSH_5`] — every 13-bit rank pattern.
 pub const FLUSH_5_LEN: usize = 8192;
 
 static ALIGNED_NO_FLUSH_5: &Aligned<[u8; NO_FLUSH_5_LEN * 2]> = &Aligned {

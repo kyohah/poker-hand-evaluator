@@ -20,6 +20,7 @@
 //! `suit 0=c, 1=d, 2=h, 3=s`. Internally the rank is translated to
 //! Badugi semantics where Ace is the smallest rank.
 
+#![warn(missing_docs)]
 #![forbid(unsafe_code)]
 
 use std::cmp::Reverse;

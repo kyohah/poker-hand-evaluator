@@ -4,6 +4,8 @@
 //! Hold'em-shape `phe-core::Hand` (Ace is rank 0, suits are not part of
 //! the perfect-hash key), so this crate keeps its own [`Hand`] struct.
 
+#![warn(missing_docs)]
+
 mod hand;
 mod rule;
 

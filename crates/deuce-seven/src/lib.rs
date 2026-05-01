@@ -16,6 +16,8 @@
 //! player's hand is exactly 5 cards, so this is not a practical
 //! limitation. See `phe-scripts gen-deuce-seven-lookup` for details.
 
+#![warn(missing_docs)]
+
 use phe_core::{evaluate_via_lookup, Hand};
 use phe_deuce_seven_assets::{LOOKUP, LOOKUP_FLUSH};
 use std::cmp::Reverse;

@@ -5,6 +5,8 @@
 //! plus Hold'em-specific category logic, enumeration, and heads-up
 //! win-frequency utilities.
 
+#![warn(missing_docs)]
+
 mod category;
 mod enumerate;
 mod eval;

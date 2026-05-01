@@ -19,6 +19,7 @@
 //! Low-hand rules wrap their raw rank in `std::cmp::Reverse` so the
 //! contract holds (smaller raw rank = stronger low hand).
 
+#![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 // Sub-crate re-exports. These keep raw access to the underlying types
@@ -53,8 +54,20 @@ pub use phe_omaha as omaha;
 /// `DeuceSevenLowRule`, ...) so values are essentially free; pass them
 /// by value into composites like [`HiLoRule`].
 pub trait HandRule: Send + Sync {
+    /// Strength type returned by [`evaluate`](Self::evaluate). Must
+    /// be totally ordered (higher = stronger) so callers can compare,
+    /// sort, or `max` strengths without further conversion. `Reverse`
+    /// is the standard wrapper for low-rule variants where the
+    /// underlying lookup returns "lower = stronger".
     type Strength: Ord + Copy + Send + Sync;
 
+    /// Returns the strength of the hand formed from `cards`.
+    ///
+    /// The expected length and content of `cards` is variant-specific
+    /// (e.g. 5..=7 for Hold'em high, exactly 9 for Omaha as
+    /// `[hole_0..hole_3, board_0..board_4]`). Out-of-contract input
+    /// is undefined behaviour; the implementer documents the exact
+    /// contract.
     fn evaluate(&self, cards: &[u8]) -> Self::Strength;
 }
 
@@ -194,7 +207,9 @@ impl HandRule for BadugiRule {
 /// awarding.
 #[derive(Default, Clone, Copy, Debug)]
 pub struct HiLoRule<H: HandRule, L: HandRule> {
+    /// High-side rule (e.g. [`HighRule`] for Hold'em hi/lo).
     pub hi: H,
+    /// Low-side rule (e.g. [`EightLowQualifiedRule`] for Omaha 8-or-better).
     pub lo: L,
 }
 

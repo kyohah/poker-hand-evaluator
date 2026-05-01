@@ -1,3 +1,6 @@
+/// Universal first-fit-decreasing displacement table. Combined with
+/// `Hand::get_key()` it produces a dense index into a variant's
+/// `LOOKUP[..]` rank table — see `phe_core::evaluate_via_lookup`.
 pub static OFFSETS: [i32; 12500] = [
     0, 0, 0, 0, 0, 0, 0, 0, 57352, 0, 0, 51241, 49185, 0, 45088, 43038, 40987, 38936, 36887, 34838,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

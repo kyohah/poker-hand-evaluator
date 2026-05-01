@@ -7,11 +7,18 @@ use std::str::FromStr;
 /// Low hand categories, ordered from best (NoPair=0) to worst (FourOfAKind=5).
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum LowHandCategory {
+    /// Five distinct ranks, no pair (this is the only category that
+    /// can qualify for 8-or-better).
     NoPair = 0,
+    /// One pair plus three distinct kickers.
     OnePair = 1,
+    /// Two pair plus a kicker.
     TwoPair = 2,
+    /// Three of a kind plus two kickers.
     ThreeOfAKind = 3,
+    /// Three of a kind plus a pair.
     FullHouse = 4,
+    /// Four of a kind plus a kicker.
     FourOfAKind = 5,
 }
 
@@ -57,6 +64,11 @@ pub fn qualifies_8_or_better(hand_rank: u16) -> bool {
     hand_rank <= EIGHT_OR_BETTER_THRESHOLD
 }
 
+/// A 5-to-7-card hand for low evaluation.
+///
+/// Same layout as `phe_core::Hand` (perfect-hash key + 52-bit mask)
+/// but uses A-5 ranking semantics: A is low, no straights or flushes
+/// are recognised, and the wheel `A-2-3-4-5` is the strongest hand.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Hand {
     key: u64,

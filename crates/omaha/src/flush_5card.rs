@@ -1,5 +1,7 @@
 //! Generated from HenryRLee `cpp/src/hashtable.c::flush[8192]`. Apache-2.0.
 
+/// 5-card flush rank table indexed by the 13-bit rank-bitmap.
+/// Cactus-Kev rank in `[1, 7462]`, lower = stronger.
 pub const FLUSH: [u16; 8192] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1599, 0, 0, 0, 0, 0, 0, 0, 1598, 0, 0, 0, 1597, 0,

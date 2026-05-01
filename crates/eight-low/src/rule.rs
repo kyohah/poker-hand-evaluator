@@ -30,6 +30,8 @@ impl EightLowQualifiedRule {
 pub struct AceFiveLowRule;
 
 impl AceFiveLowRule {
+    /// Returns `Reverse(rank)` — every hand qualifies in A-5 lowball,
+    /// so this never returns `None` (unlike [`EightLowQualifiedRule`]).
     #[inline]
     pub fn evaluate(hand: &Hand) -> Reverse<u16> {
         Reverse(hand.evaluate())

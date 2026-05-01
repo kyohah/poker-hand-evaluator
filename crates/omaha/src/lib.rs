@@ -2,6 +2,7 @@
 //!
 //! Phase 0a: bit-exact port. No Rust-side optimisations yet.
 
+#![warn(missing_docs)]
 // The 9-card and 10-card argument lists in `evaluate_plo4_cards` /
 // `noflush_index_scalar` / `evaluate_with_noflush_idx` mirror
 // HenryRLee's C signatures exactly so the algorithm is easy to

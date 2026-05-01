@@ -6,8 +6,13 @@
 //! `phe-deuce-seven`, ...) ship the rule-specific lookup tables and a
 //! thin wrapper around the shared core.
 
+#![warn(missing_docs)]
+
+/// Card-encoding constants and per-card perfect-hash bases.
 pub mod constants;
 mod hand;
+/// First-fit-decreasing displacement table that flattens the
+/// perfect-hash key space into a dense `LOOKUP[..]` index.
 pub mod offsets;
 
 pub use constants::{
