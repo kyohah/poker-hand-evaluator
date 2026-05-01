@@ -1,9 +1,44 @@
 # poker-hand-evaluator
 
+[![CI](https://github.com/kyohah/poker-hand-evaluator/actions/workflows/ci.yml/badge.svg)](https://github.com/kyohah/poker-hand-evaluator/actions/workflows/ci.yml)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT_OR_Apache--2.0-blue.svg)](#license)
+
 A unified, single-thread, high-throughput poker hand evaluator covering
 multiple variants behind a single `HandRule` trait. Designed for
 embedding in solvers / equity calculators where evaluation cost is the
 hot path.
+
+## Quick start
+
+```rust
+use poker_hand_evaluator::{HandRule, HighRule};
+
+// card = rank * 4 + suit; rank 0='2'..12='A', suit 0=c, 1=d, 2=h, 3=s.
+// 5–7 cards, any order. Higher Strength = stronger hand.
+let royal_flush = [
+    12 * 4 + 3, // A♠
+    11 * 4 + 3, // K♠
+    10 * 4 + 3, // Q♠
+    9 * 4 + 3,  // J♠
+    8 * 4 + 3,  // T♠
+    0 * 4 + 0,  // 2♣ (extra 7-card eval cards, ignored if weaker)
+    0 * 4 + 1,  // 2♦
+];
+let pair_of_aces = [
+    12 * 4 + 0, // A♣
+    12 * 4 + 1, // A♦
+    1 * 4 + 2,  // 3♥
+    3 * 4 + 0,  // 5♣
+    7 * 4 + 1,  // 9♦
+    9 * 4 + 2,  // J♥
+    11 * 4 + 0, // K♣
+];
+assert!(HighRule.evaluate(&royal_flush) > HighRule.evaluate(&pair_of_aces));
+```
+
+Runnable demos in [`examples/`](examples/): `showdown.rs`,
+`omaha_eval.rs`, `heads_up_equity.rs`. Run with
+`cargo run --example <name>`.
 
 ## Variants
 
