@@ -347,6 +347,19 @@ name = "phe-omaha-assets"
 version = "0.1.0"
 
 [[package]]
+name = "phe-omaha-fast"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "phe-omaha",
+ "phe-omaha-fast-assets",
+]
+
+[[package]]
+name = "phe-omaha-fast-assets"
+version = "0.1.0"
+
+[[package]]
 name = "phe-scripts"
 version = "0.1.0"
 dependencies = [
