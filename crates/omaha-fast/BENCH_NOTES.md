@@ -1,7 +1,7 @@
 # `phe-omaha-fast` performance notes
 
 Direct comparison against the upstream HenryRLee/PokerHandEvaluator C
-reference, run on the **same host** (no cross-host noise).
+reference, run on the **same Windows host** (no cross-host noise).
 
 ## Numbers
 
@@ -10,41 +10,71 @@ reference, run on the **same host** (no cross-host noise).
 
 | build                                  | speed (ns / eval) |
 |----------------------------------------|-------------------|
-| Rust `phe-omaha-fast` (this crate)     | **~37 ns**        |
-| C MSVC `cl /O2 /GL /LTCG` (LTO on)     | 45.8 – 47.3 ns    |
-| C MSVC `cl /O2` only                   | 52 – 62 ns        |
+| **Rust `phe-omaha-fast` (LLVM)**       | **~35 ns** (best 34.9) |
+| **C clang-cl `/O2 -flto -fuse-ld=lld`**| **~35 ns** (best 34.7) |
+| C MSVC `cl /O2 /GL /LTCG`              | ~46 ns            |
+| C MSVC `cl /O2` (no LTO)               | ~52 – 62 ns       |
 | HenryRLee published (their host, gcc)  | 30.5 ns           |
 
-The Rust port is **~20% faster than the C reference compiled with MSVC
-on this host**. Both implementations execute the identical algorithm
-(verbatim port + bit-exact correctness on 1000+ hands and on the Royal
-SF spot-check), so the gap is compiler / codegen, not algorithmic.
+When both are compiled with LLVM at `-O2 +LTO`, the Rust port and the
+C reference are **at parity on this host** (within ~0.2 ns,
+indistinguishable from noise). The 30.5 ns HenryRLee published was on
+a different machine; we cannot reproduce that absolute number here,
+but Rust matches what an LLVM-built C does.
 
-The 30.5 ns published by HenryRLee was on a different machine
-(2.6 GHz Linux box, gcc / clang). On this host (Windows 11 + a
-laptop-class CPU + MSVC) we cannot reproduce that absolute number from
-their C build, but our Rust LLVM port lands close to where a
-`clang-cl` build would.
+## Why MSVC is slower
 
-## How to reproduce the C number
+Cross-translation-unit inlining: with `cl /O2` alone, MSVC compiles
+each `.c` file separately and the linker doesn't inline across
+boundaries, so every `evaluate_plo4_cards` call is a real function
+call. `/GL /LTCG` enables whole-program optimisation, which recovers
+~6 ns but still trails LLVM by ~10 ns on this kernel.
+
+## How to reproduce
+
+### Rust
 
 ```sh
-# In ~/ghq/github.com/HenryRLee/PokerHandEvaluator
-# (1) Save the snippet below as bench_plo4.c
-# (2) From a "x64 Native Tools Command Prompt for VS 2022":
+cd ~/ghq/github.com/kyohah/poker-hand-evaluator
+cargo bench -p phe-omaha-fast --bench eval -- --quick
+```
+
+### C (clang-cl + LTO)
+
+```sh
+# Install LLVM if needed:
+scoop install llvm        # or: winget install LLVM.LLVM
+
+# In ~/ghq/github.com/HenryRLee/PokerHandEvaluator:
+# (1) Save bench_plo4.c (snippet below)
+# (2) From an x64 Native Tools Command Prompt:
 
 mkdir obj
-cl /O2 /GL /nologo /I cpp\include bench_plo4.c \
-  cpp\src\evaluator_plo4.c cpp\src\dptables.c cpp\src\tables_bitwise.c \
-  cpp\src\tables_plo4.c cpp\src\hash.c cpp\src\hashtable.c \
-  cpp\src\rank.c cpp\src\7462.c \
-  /link /LTCG /OUT:bench_plo4.exe
+"C:\Users\kyoha\scoop\apps\llvm\current\bin\clang-cl.exe" \
+    /O2 -flto -fuse-ld=lld /nologo /I cpp\include \
+    bench_plo4.c \
+    cpp\src\evaluator_plo4.c cpp\src\dptables.c cpp\src\tables_bitwise.c \
+    cpp\src\tables_plo4.c cpp\src\hash.c cpp\src\hashtable.c \
+    cpp\src\rank.c cpp\src\7462.c \
+    /Fe:bench_clang.exe /Fo:obj\
 
-bench_plo4.exe   # prints `PLO4 C reference: XX.XX ns/eval ...`
+bench_clang.exe   # prints `PLO4 C: XX.XX ns/eval ...`
+```
+
+### C (MSVC LTCG, for comparison)
+
+```sh
+mkdir obj
+cl /O2 /GL /nologo /I cpp\include bench_plo4.c \
+   cpp\src\evaluator_plo4.c cpp\src\dptables.c cpp\src\tables_bitwise.c \
+   cpp\src\tables_plo4.c cpp\src\hash.c cpp\src\hashtable.c \
+   cpp\src\rank.c cpp\src\7462.c \
+   /link /LTCG /OUT:bench_msvc.exe
 ```
 
 ```c
-// bench_plo4.c
+// bench_plo4.c — same fixture-generation as our criterion bench
+// so the two numbers are directly comparable.
 #include <stdio.h>
 #include <stdint.h>
 #include <windows.h>
@@ -89,7 +119,7 @@ int main(void) {
                 holes[i][0], holes[i][1], holes[i][2], holes[i][3]);
     QueryPerformanceCounter(&t1);
     double sec = (double)(t1.QuadPart - t0.QuadPart) / (double)freq.QuadPart;
-    printf("PLO4 C reference: %.2f ns/eval over %lld evals (sink=%d, %.3fs total)\n",
+    printf("PLO4 C: %.2f ns/eval (%lld evals, sink=%d, %.3fs)\n",
            sec * 1e9 / ((double)N * (double)NF),
            (long long)N * (long long)NF, sink, sec);
     return 0;
@@ -98,10 +128,15 @@ int main(void) {
 
 ## Implication
 
-The "13× slower than HenryRLee" worry that motivated this port turned
-out to be unfounded once we measured on the same host. With the
-algorithm faithfully ported and Rust's LLVM backend, we end up
-**faster than the upstream C** out of the box. No further hot-path
-hand-tuning is needed to remain competitive — the next meaningful
-improvement would be a cache-friendlier table layout (phase 2 in the
-roadmap), not micro-optimisation of the existing kernel.
+`phe-omaha-fast` is at parity with `clang-cl`-built C on this host.
+The "13× slower than HenryRLee" worry that motivated this port was
+eliminated entirely once we measured on the same host with the same
+LLVM backend — both implementations land at ~35 ns / eval, and the
+gap to HenryRLee's published 30.5 ns is microarchitectural (CPU clock
+and L3 hit-rate on a different machine), not algorithmic or
+language-level.
+
+The next meaningful improvement is a cache-friendlier table layout
+(phase 2 in the omaha-fast roadmap), not micro-optimisation of the
+existing kernel — both LLVM C and LLVM Rust have already squeezed
+this algorithm dry.
