@@ -1,0 +1,52 @@
+name: Miri
+
+# Miri is the only realistic way to catch undefined behaviour in the
+# many `unsafe { *T.get_unchecked(i) }` callsites that drive the hot
+# evaluators. We run a focused subset (not the full workspace test
+# suite) because Miri is ~50× slower than native and re-running every
+# bench fixture every push is overkill — the goal is to exercise the
+# unsafe surface, not to re-prove parity.
+#
+# Skipped jobs: the `*-assets` crates contain no unsafe of substance;
+# `phe-scripts` is internal; the CUDA backend tests can't run under
+# Miri because they need NVRTC.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Miri is not a fast pre-merge gate; cron-only on schedule
+  # would be fine too if PR runtime becomes a concern.
+  schedule:
+    - cron: "0 5 * * 1" # weekly Monday 05:00 UTC
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  miri:
+    name: miri test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@miri
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo miri setup
+        run: cargo miri setup
+      # phe-core: Hand bit-hash + lookup. Most-used unsafe.
+      - name: miri test phe-core
+        run: cargo miri test -p phe-core
+      # phe-holdem: HighRule evaluator + lookup tables.
+      - name: miri test phe-holdem
+        run: cargo miri test -p phe-holdem --lib
+      # phe-omaha: PLO4 evaluator + suit-padding bit-trick + batch path.
+      # Skip benches (criterion uses lots of unsupported syscalls under Miri).
+      - name: miri test phe-omaha
+        run: cargo miri test -p phe-omaha --lib --tests
+      # phe-eight-low: low-rule lookup.
+      - name: miri test phe-eight-low
+        run: cargo miri test -p phe-eight-low --lib
+      # phe-deuce-seven: 5-card 2-7 lowball lookup.
+      - name: miri test phe-deuce-seven
+        run: cargo miri test -p phe-deuce-seven --lib

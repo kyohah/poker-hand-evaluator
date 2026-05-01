@@ -1,0 +1,33 @@
+name: SemVer
+
+# Detects accidental breaking changes in the public API. Runs on PRs
+# only — once a change is merged it's already public, the value is in
+# catching the violation before merge.
+#
+# Skipped: while at 0.x, breaking changes are explicitly allowed by
+# the changelog; the action is configured with `release-type=minor`
+# so it warns / fails only when it sees a breaking change going into
+# what cargo-semver-checks would consider a non-major bump. After
+# 1.0 we'll switch to default behaviour.
+
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  semver-checks:
+    name: cargo-semver-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          # While at 0.x, allow breaking changes in any release;
+          # treat the bump as if it were a minor release. Flip to
+          # the default after the 1.0 release.
+          release-type: minor
