@@ -212,3 +212,32 @@ pub const BIT_OF_DIV_4: [u16; 52] = [
     0x100, 0x100, 0x100, 0x200, 0x200, 0x200, 0x200, 0x400, 0x400, 0x400, 0x400, 0x800, 0x800,
     0x800, 0x800, 0x1000, 0x1000, 0x1000, 0x1000,
 ];
+
+/// Per-card increment for the packed-`u16` suit counter. Each 4-bit
+/// nibble counts cards in one suit; `SUIT_INC[c] = 1u16 << (4 * (c & 3))`.
+///
+/// Used together with `SUIT_INIT_BOARD` / `SUIT_INIT_HOLE` so the
+/// `scb >= 3 && sch >= 2` flush check collapses to a single
+/// `(scb_packed & sch_packed) & 0x8888`.
+pub const SUIT_INC: [u16; 52] = {
+    let mut t = [0u16; 52];
+    let mut c = 0;
+    while c < 52 {
+        t[c] = 1u16 << (4 * (c & 3));
+        c += 1;
+    }
+    t
+};
+
+/// Initial value for the packed board suit counter: each 4-bit nibble
+/// is biased by 5 so that `5 + 3 = 8` lights bit 3 — i.e. bit 3 of a
+/// nibble is set iff that suit has at least 3 board cards.
+pub const SUIT_INIT_BOARD: u16 = 0x5555;
+
+/// Initial value for the packed hole suit counter: bias 6 so that
+/// `6 + 2 = 8` lights bit 3 iff the suit has at least 2 hole cards.
+pub const SUIT_INIT_HOLE: u16 = 0x6666;
+
+/// Mask of bit 3 in every nibble. After ANDing the two packed counters
+/// with this, a nonzero result locates the (unique) flush suit.
+pub const SUIT_OVERFLOW_MASK: u16 = 0x8888;

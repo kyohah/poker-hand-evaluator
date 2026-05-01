@@ -20,7 +20,7 @@
 //! enough to hide ~80 ns of latency while small enough to fit in the
 //! reorder buffer.
 
-use crate::dp::BIT_OF_DIV_4;
+use crate::dp::{BIT_OF_DIV_4, SUIT_INC, SUIT_INIT_BOARD, SUIT_INIT_HOLE, SUIT_OVERFLOW_MASK};
 use crate::flush_5card::FLUSH;
 use crate::hash::{hash_binary, hash_quinary};
 use phe_omaha_assets::{FLUSH_PLO4, NOFLUSH_PLO4};
@@ -82,60 +82,61 @@ fn evaluate_with_noflush_idx(
 ) -> i32 {
     let mut value_flush: i32 = 10000;
 
-    let mut suit_count_board = [0i32; 4];
-    let mut suit_count_hole = [0i32; 4];
+    // See `evaluate_plo4_cards` in eval.rs for the bit-trick rationale.
+    let mut scb_packed: u16 = SUIT_INIT_BOARD;
+    let mut sch_packed: u16 = SUIT_INIT_HOLE;
     unsafe {
-        *suit_count_board.get_unchecked_mut((c1 & 0x3) as usize) += 1;
-        *suit_count_board.get_unchecked_mut((c2 & 0x3) as usize) += 1;
-        *suit_count_board.get_unchecked_mut((c3 & 0x3) as usize) += 1;
-        *suit_count_board.get_unchecked_mut((c4 & 0x3) as usize) += 1;
-        *suit_count_board.get_unchecked_mut((c5 & 0x3) as usize) += 1;
-        *suit_count_hole.get_unchecked_mut((h1 & 0x3) as usize) += 1;
-        *suit_count_hole.get_unchecked_mut((h2 & 0x3) as usize) += 1;
-        *suit_count_hole.get_unchecked_mut((h3 & 0x3) as usize) += 1;
-        *suit_count_hole.get_unchecked_mut((h4 & 0x3) as usize) += 1;
+        scb_packed = scb_packed.wrapping_add(*SUIT_INC.get_unchecked(c1 as usize));
+        scb_packed = scb_packed.wrapping_add(*SUIT_INC.get_unchecked(c2 as usize));
+        scb_packed = scb_packed.wrapping_add(*SUIT_INC.get_unchecked(c3 as usize));
+        scb_packed = scb_packed.wrapping_add(*SUIT_INC.get_unchecked(c4 as usize));
+        scb_packed = scb_packed.wrapping_add(*SUIT_INC.get_unchecked(c5 as usize));
+        sch_packed = sch_packed.wrapping_add(*SUIT_INC.get_unchecked(h1 as usize));
+        sch_packed = sch_packed.wrapping_add(*SUIT_INC.get_unchecked(h2 as usize));
+        sch_packed = sch_packed.wrapping_add(*SUIT_INC.get_unchecked(h3 as usize));
+        sch_packed = sch_packed.wrapping_add(*SUIT_INC.get_unchecked(h4 as usize));
     }
 
-    for i in 0..4 {
-        let scb = unsafe { *suit_count_board.get_unchecked(i) };
-        let sch = unsafe { *suit_count_hole.get_unchecked(i) };
-        if scb >= 3 && sch >= 2 {
-            let mut suit_binary_board = [0i32; 4];
-            let mut suit_binary_hole = [0i32; 4];
-            unsafe {
-                *suit_binary_board.get_unchecked_mut((c1 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(c1 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c2 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(c2 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c3 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(c3 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c4 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(c4 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c5 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(c5 as usize) as i32;
-                *suit_binary_hole.get_unchecked_mut((h1 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(h1 as usize) as i32;
-                *suit_binary_hole.get_unchecked_mut((h2 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(h2 as usize) as i32;
-                *suit_binary_hole.get_unchecked_mut((h3 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(h3 as usize) as i32;
-                *suit_binary_hole.get_unchecked_mut((h4 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(h4 as usize) as i32;
-            }
-            let sbb = unsafe { *suit_binary_board.get_unchecked(i) };
-            let sbh = unsafe { *suit_binary_hole.get_unchecked(i) };
-            if scb == 3 && sch == 2 {
-                value_flush = unsafe { *FLUSH.get_unchecked((sbb | sbh) as usize) } as i32;
-            } else {
-                let board_padded = sbb | unsafe { *PADDING.get_unchecked((5 - scb) as usize) };
-                let hole_padded = sbh | unsafe { *PADDING.get_unchecked((4 - sch) as usize) };
-                let board_hash = hash_binary(board_padded, 5);
-                let hole_hash = hash_binary(hole_padded, 4);
-                value_flush =
-                    unsafe { *FLUSH_PLO4.get_unchecked((board_hash * 1365 + hole_hash) as usize) }
-                        as i32;
-            }
-            break;
+    let both = scb_packed & sch_packed & SUIT_OVERFLOW_MASK;
+    if both != 0 {
+        let i = (both.trailing_zeros() / 4) as usize;
+        let scb = (((scb_packed >> (4 * i)) & 0xF) as i32) - 5;
+        let sch = (((sch_packed >> (4 * i)) & 0xF) as i32) - 6;
+
+        let mut suit_binary_board = [0i32; 4];
+        let mut suit_binary_hole = [0i32; 4];
+        unsafe {
+            *suit_binary_board.get_unchecked_mut((c1 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(c1 as usize) as i32;
+            *suit_binary_board.get_unchecked_mut((c2 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(c2 as usize) as i32;
+            *suit_binary_board.get_unchecked_mut((c3 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(c3 as usize) as i32;
+            *suit_binary_board.get_unchecked_mut((c4 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(c4 as usize) as i32;
+            *suit_binary_board.get_unchecked_mut((c5 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(c5 as usize) as i32;
+            *suit_binary_hole.get_unchecked_mut((h1 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(h1 as usize) as i32;
+            *suit_binary_hole.get_unchecked_mut((h2 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(h2 as usize) as i32;
+            *suit_binary_hole.get_unchecked_mut((h3 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(h3 as usize) as i32;
+            *suit_binary_hole.get_unchecked_mut((h4 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(h4 as usize) as i32;
+        }
+        let sbb = unsafe { *suit_binary_board.get_unchecked(i) };
+        let sbh = unsafe { *suit_binary_hole.get_unchecked(i) };
+        if scb == 3 && sch == 2 {
+            value_flush = unsafe { *FLUSH.get_unchecked((sbb | sbh) as usize) } as i32;
+        } else {
+            let board_padded = sbb | unsafe { *PADDING.get_unchecked((5 - scb) as usize) };
+            let hole_padded = sbh | unsafe { *PADDING.get_unchecked((4 - sch) as usize) };
+            let board_hash = hash_binary(board_padded, 5);
+            let hole_hash = hash_binary(hole_padded, 4);
+            value_flush =
+                unsafe { *FLUSH_PLO4.get_unchecked((board_hash * 1365 + hole_hash) as usize) }
+                    as i32;
         }
     }
 

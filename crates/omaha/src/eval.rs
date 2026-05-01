@@ -5,7 +5,7 @@
 //! All inputs are card ids in `[0, 51]`; the C reference is UB outside
 //! that range and we preserve that contract.
 
-use crate::dp::BIT_OF_DIV_4;
+use crate::dp::{BIT_OF_DIV_4, SUIT_INC, SUIT_INIT_BOARD, SUIT_INIT_HOLE, SUIT_OVERFLOW_MASK};
 use crate::flush_5card::FLUSH;
 use crate::hash::{hash_binary, hash_quinary};
 use phe_omaha_assets::{FLUSH_PLO4, NOFLUSH_PLO4};
@@ -44,80 +44,83 @@ pub fn evaluate_plo4_cards(
 ) -> i32 {
     let mut value_flush: i32 = 10000;
 
-    let mut suit_count_board = [0i32; 4];
-    let mut suit_count_hole = [0i32; 4];
-
-    // SAFETY: c & 0x3 ∈ [0, 3], within suit_count_*'s 4-element bounds.
+    // Packed suit counters: 4 nibbles × 4 bits, biased by 5 (board) or
+    // 6 (hole) so that "≥3 board" and "≥2 hole" both materialise as
+    // bit 3 of the matching nibble. The flush check then collapses to
+    // a single AND.
+    //
+    // SAFETY: c ∈ [0, 51] indexes SUIT_INC (length 52). At most 5 board
+    // and 4 hole increments per suit, so each nibble stays in [0, 10] —
+    // no inter-nibble carry is possible.
+    let mut scb_packed: u16 = SUIT_INIT_BOARD;
+    let mut sch_packed: u16 = SUIT_INIT_HOLE;
     unsafe {
-        *suit_count_board.get_unchecked_mut((c1 & 0x3) as usize) += 1;
-        *suit_count_board.get_unchecked_mut((c2 & 0x3) as usize) += 1;
-        *suit_count_board.get_unchecked_mut((c3 & 0x3) as usize) += 1;
-        *suit_count_board.get_unchecked_mut((c4 & 0x3) as usize) += 1;
-        *suit_count_board.get_unchecked_mut((c5 & 0x3) as usize) += 1;
-
-        *suit_count_hole.get_unchecked_mut((h1 & 0x3) as usize) += 1;
-        *suit_count_hole.get_unchecked_mut((h2 & 0x3) as usize) += 1;
-        *suit_count_hole.get_unchecked_mut((h3 & 0x3) as usize) += 1;
-        *suit_count_hole.get_unchecked_mut((h4 & 0x3) as usize) += 1;
+        scb_packed = scb_packed.wrapping_add(*SUIT_INC.get_unchecked(c1 as usize));
+        scb_packed = scb_packed.wrapping_add(*SUIT_INC.get_unchecked(c2 as usize));
+        scb_packed = scb_packed.wrapping_add(*SUIT_INC.get_unchecked(c3 as usize));
+        scb_packed = scb_packed.wrapping_add(*SUIT_INC.get_unchecked(c4 as usize));
+        scb_packed = scb_packed.wrapping_add(*SUIT_INC.get_unchecked(c5 as usize));
+        sch_packed = sch_packed.wrapping_add(*SUIT_INC.get_unchecked(h1 as usize));
+        sch_packed = sch_packed.wrapping_add(*SUIT_INC.get_unchecked(h2 as usize));
+        sch_packed = sch_packed.wrapping_add(*SUIT_INC.get_unchecked(h3 as usize));
+        sch_packed = sch_packed.wrapping_add(*SUIT_INC.get_unchecked(h4 as usize));
     }
 
-    for i in 0..4 {
-        // SAFETY: i ∈ [0,3], suit_count_*[i] valid.
-        let scb = unsafe { *suit_count_board.get_unchecked(i) };
-        let sch = unsafe { *suit_count_hole.get_unchecked(i) };
-        if scb >= 3 && sch >= 2 {
-            // Flush is reachable in suit `i`.
-            let mut suit_binary_board = [0i32; 4];
-            let mut suit_binary_hole = [0i32; 4];
+    // At most one suit can have ≥3 board cards (only 5 board cards
+    // total), so `both` has at most one bit set.
+    let both = scb_packed & sch_packed & SUIT_OVERFLOW_MASK;
+    if both != 0 {
+        let i = (both.trailing_zeros() / 4) as usize;
+        let scb = (((scb_packed >> (4 * i)) & 0xF) as i32) - 5;
+        let sch = (((sch_packed >> (4 * i)) & 0xF) as i32) - 6;
 
-            // SAFETY: c & 0x3 ∈ [0,3] for suit_binary index;
-            // c ∈ [0,51] for BIT_OF_DIV_4 (length 52).
-            unsafe {
-                *suit_binary_board.get_unchecked_mut((c1 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(c1 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c2 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(c2 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c3 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(c3 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c4 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(c4 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c5 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(c5 as usize) as i32;
+        let mut suit_binary_board = [0i32; 4];
+        let mut suit_binary_hole = [0i32; 4];
 
-                *suit_binary_hole.get_unchecked_mut((h1 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(h1 as usize) as i32;
-                *suit_binary_hole.get_unchecked_mut((h2 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(h2 as usize) as i32;
-                *suit_binary_hole.get_unchecked_mut((h3 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(h3 as usize) as i32;
-                *suit_binary_hole.get_unchecked_mut((h4 & 0x3) as usize) |=
-                    *BIT_OF_DIV_4.get_unchecked(h4 as usize) as i32;
-            }
+        // SAFETY: c & 0x3 ∈ [0,3] for suit_binary index;
+        // c ∈ [0,51] for BIT_OF_DIV_4 (length 52).
+        unsafe {
+            *suit_binary_board.get_unchecked_mut((c1 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(c1 as usize) as i32;
+            *suit_binary_board.get_unchecked_mut((c2 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(c2 as usize) as i32;
+            *suit_binary_board.get_unchecked_mut((c3 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(c3 as usize) as i32;
+            *suit_binary_board.get_unchecked_mut((c4 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(c4 as usize) as i32;
+            *suit_binary_board.get_unchecked_mut((c5 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(c5 as usize) as i32;
 
-            // SAFETY: i ∈ [0,3]; suit_binary_*[i] is at most a
-            // 13-bit mask, so the OR is at most 13 bits → FLUSH index
-            // ∈ [0, 8192). 5 - scb ∈ {0,1,2}, 4 - sch ∈ {0,1,2} for
-            // PADDING (length 3).
-            let sbb = unsafe { *suit_binary_board.get_unchecked(i) };
-            let sbh = unsafe { *suit_binary_hole.get_unchecked(i) };
+            *suit_binary_hole.get_unchecked_mut((h1 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(h1 as usize) as i32;
+            *suit_binary_hole.get_unchecked_mut((h2 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(h2 as usize) as i32;
+            *suit_binary_hole.get_unchecked_mut((h3 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(h3 as usize) as i32;
+            *suit_binary_hole.get_unchecked_mut((h4 & 0x3) as usize) |=
+                *BIT_OF_DIV_4.get_unchecked(h4 as usize) as i32;
+        }
 
-            if scb == 3 && sch == 2 {
-                value_flush = unsafe { *FLUSH.get_unchecked((sbb | sbh) as usize) } as i32;
-            } else {
-                let board_padded = sbb | unsafe { *PADDING.get_unchecked((5 - scb) as usize) };
-                let hole_padded = sbh | unsafe { *PADDING.get_unchecked((4 - sch) as usize) };
+        // SAFETY: i ∈ [0,3]; suit_binary_*[i] is at most a 13-bit mask,
+        // so the OR is at most 13 bits → FLUSH index ∈ [0, 8192).
+        // 5 - scb ∈ {0,1,2}, 4 - sch ∈ {0,1,2} for PADDING (length 3).
+        let sbb = unsafe { *suit_binary_board.get_unchecked(i) };
+        let sbh = unsafe { *suit_binary_hole.get_unchecked(i) };
 
-                let board_hash = hash_binary(board_padded, 5);
-                let hole_hash = hash_binary(hole_padded, 4);
+        if scb == 3 && sch == 2 {
+            value_flush = unsafe { *FLUSH.get_unchecked((sbb | sbh) as usize) } as i32;
+        } else {
+            let board_padded = sbb | unsafe { *PADDING.get_unchecked((5 - scb) as usize) };
+            let hole_padded = sbh | unsafe { *PADDING.get_unchecked((4 - sch) as usize) };
 
-                // SAFETY: board_hash ∈ [0, 1365), hole_hash ∈ [0, 1365),
-                // so combined index < 1365*1365 = 1_863_225 < 4_099_095.
-                value_flush =
-                    unsafe { *FLUSH_PLO4.get_unchecked((board_hash * 1365 + hole_hash) as usize) }
-                        as i32;
-            }
+            let board_hash = hash_binary(board_padded, 5);
+            let hole_hash = hash_binary(hole_padded, 4);
 
-            break;
+            // SAFETY: board_hash ∈ [0, 1365), hole_hash ∈ [0, 1365),
+            // so combined index < 1365*1365 = 1_863_225 < 4_099_095.
+            value_flush =
+                unsafe { *FLUSH_PLO4.get_unchecked((board_hash * 1365 + hole_hash) as usize) }
+                    as i32;
         }
     }
 
