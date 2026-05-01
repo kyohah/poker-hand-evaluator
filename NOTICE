@@ -1,0 +1,54 @@
+poker-hand-evaluator
+Copyright 2026 kyohah
+
+This product is dual-licensed under MIT OR Apache-2.0. See LICENSE-MIT
+and LICENSE-APACHE for the full license texts.
+
+This product includes software derived from third-party projects:
+
+------------------------------------------------------------------------
+
+1. HenryRLee/PokerHandEvaluator (Apache License 2.0)
+   https://github.com/HenryRLee/PokerHandEvaluator
+   Copyright 2016-2024 Henry Lee and contributors.
+
+   The following components are direct ports or derivative works of
+   files in `cpp/src/`:
+
+   * `crates/omaha/src/eval.rs`            from `evaluator_plo4.c`
+   * `crates/omaha/src/batch.rs`           from `evaluator_plo4.c`
+   * `crates/omaha/src/hash.rs`            from `hash.c`
+   * `crates/omaha/src/dp.rs`              from `dptables.c`,
+                                                `tables_bitwise.c`
+   * `crates/omaha/src/flush_5card.rs`     from `tables_plo4.c`,
+                                                `7462.c`
+   * `crates/omaha/src/cuda/kernel.rs`     CUDA-C source string,
+                                           ported from
+                                           `evaluator_plo4.c`
+   * `crates/omaha-assets/build.rs`        and the generated
+                                           FLUSH_PLO4 / NOFLUSH_PLO4
+                                           tables
+
+   Use of these files is governed by the Apache License 2.0; see
+   LICENSE-APACHE.
+
+------------------------------------------------------------------------
+
+2. b-inary/holdem-hand-evaluator (MIT License)
+   https://github.com/b-inary/holdem-hand-evaluator
+   Copyright 2018 b-inary.
+
+   The following components are direct ports or derivative works:
+
+   * `crates/holdem/src/`                  hold'em 5/6/7-card eval
+                                           perfect-hash and lookup
+                                           tables
+   * `crates/holdem/src/cuda/kernel.rs`    CUDA-C source string,
+                                           ported from the same
+                                           algorithm
+   * `crates/holdem-assets/`               LOOKUP / LOOKUP_FLUSH /
+                                           OFFSETS tables
+
+   Use of these files is governed by the MIT License; see LICENSE-MIT.
+
+------------------------------------------------------------------------
