@@ -7,8 +7,10 @@
 //! latency:
 //!
 //! 1. **Pass 1** computes the noflush index for every hand. This is
-//!    ~10 ns of pure CPU work per hand and never touches the big
-//!    table.
+//!    ~38 ns of pure CPU work per hand and never touches the big
+//!    table. Uses early-exit `hash_quinary` (the branchless variant
+//!    and a hand-written AVX2 8-wide gather were both tried and lost
+//!    to it — see BENCH_NOTES.md negative results).
 //! 2. **Pass 2** loops through the precomputed indices and runs the
 //!    full eval. Before each lookup we issue a `_mm_prefetch` for
 //!    `i + PF_AHEAD` so by the time control reaches that iteration
@@ -20,7 +22,7 @@
 
 use crate::dp::BIT_OF_DIV_4;
 use crate::flush_5card::FLUSH;
-use crate::hash::{hash_binary, hash_quinary_branchless};
+use crate::hash::{hash_binary, hash_quinary};
 use phe_omaha_fast_assets::{FLUSH_PLO4, NOFLUSH_PLO4};
 
 #[cfg(target_arch = "x86_64")]
@@ -32,8 +34,10 @@ const PF_AHEAD: usize = 8;
 /// Computes the NOFLUSH_PLO4 index for a single hand. Pure CPU work,
 /// no memory accesses to the big table.
 #[inline(always)]
-fn noflush_index(c1: i32, c2: i32, c3: i32, c4: i32, c5: i32,
-                 h1: i32, h2: i32, h3: i32, h4: i32) -> usize {
+fn noflush_index_scalar(
+    c1: i32, c2: i32, c3: i32, c4: i32, c5: i32,
+    h1: i32, h2: i32, h3: i32, h4: i32,
+) -> usize {
     let mut quinary_board = [0u8; 13];
     let mut quinary_hole = [0u8; 13];
     unsafe {
@@ -47,8 +51,8 @@ fn noflush_index(c1: i32, c2: i32, c3: i32, c4: i32, c5: i32,
         *quinary_hole.get_unchecked_mut((h3 >> 2) as usize) += 1;
         *quinary_hole.get_unchecked_mut((h4 >> 2) as usize) += 1;
     }
-    let board_hash = hash_quinary_branchless(&quinary_board, 5);
-    let hole_hash = hash_quinary_branchless(&quinary_hole, 4);
+    let board_hash = hash_quinary(&quinary_board, 5);
+    let hole_hash = hash_quinary(&quinary_hole, 4);
     (board_hash * 1820 + hole_hash) as usize
 }
 
@@ -131,11 +135,15 @@ pub fn evaluate_plo4_batch(
     assert_eq!(hands.len(), out.len(), "hands / out length mismatch");
     let n = hands.len();
 
-    // Pass 1: precompute noflush indices.
+    // Pass 1: precompute noflush indices. Pure CPU work, no big-table
+    // accesses, ~38 ns/hand. Early-exit `hash_quinary` (the path used
+    // by `noflush_index_scalar`) beat both the branchless variant and
+    // a hand-written AVX2 8-wide gather (see BENCH_NOTES.md, "Negative
+    // results").
     let mut indices: Vec<usize> = Vec::with_capacity(n);
     for i in 0..n {
         let (hole, board) = &hands[i];
-        indices.push(noflush_index(
+        indices.push(noflush_index_scalar(
             board[0] as i32, board[1] as i32, board[2] as i32, board[3] as i32, board[4] as i32,
             hole[0] as i32, hole[1] as i32, hole[2] as i32, hole[3] as i32,
         ));

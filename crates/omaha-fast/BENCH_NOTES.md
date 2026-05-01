@@ -143,6 +143,40 @@ this algorithm dry.
 
 ## Negative results recorded here so we don't retry them
 
+### AVX2 8-wide pass-1 (`hash_quinary` SIMD across hands, 2026-05-01)
+
+Tried vectorising `noflush_index` across 8 hands at a time using
+`vpgatherdd` over the small 2.8 KB `DP[5][14][10]` table. The kernel
+itself emits 26 `vpgatherdd` instructions and runs the full 13-iter
+branchless form (lanes diverge so early-exit is impossible).
+
+Bench numbers on 100K cold-cache fixtures:
+
+| pass-1 form                                 | ns / hand |
+|---------------------------------------------|----------:|
+| `hash_quinary_branchless` (forced 13-iter)  | 45.5      |
+| `hash_quinary` (early-exit)                 | **38.7**  |
+| AVX2 8-wide gather (forced 13-iter)         | 39.1      |
+
+AVX2 ties the scalar early-exit but doesn't beat it. Two reasons
+compound:
+
+1. The early-exit form averages ~11 of 13 iterations on random hands
+   (bails out as soon as `k` hits 0), whereas the SIMD form runs all
+   13 because lanes diverge. That's a built-in 13/11 ≈ 1.18× advantage
+   for scalar that no amount of in-lane parallelism cancels.
+2. The AVX2 path has to build SoA quinary histograms (8 hands ×
+   9 cards = 72 scattered byte writes into a `[u8; 8 × 13]` buffer)
+   before it can `vpgatherdd`. That scatter alone eats most of the
+   8-way kernel speedup on Skylake-class hosts.
+
+If revisiting on AVX-512 (where scatter is native and gather is
+cheaper), or on a uarch with very expensive branch mispredicts, the
+calculus may flip — but on this host the simpler scalar wins. Picking
+early-exit `hash_quinary` for `noflush_index_scalar` (replacing the
+batch-oriented branchless variant) is the actual win that came out
+of this exercise.
+
 ### Packed bitmap for suit counting (batch path, 2026-05-01)
 
 Tried replacing the 9 scattered `suit_count_*[c & 3] += 1` /

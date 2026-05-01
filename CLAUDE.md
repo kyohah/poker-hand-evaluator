@@ -33,7 +33,7 @@ caller need:
 | crate            | speed (cold-cache 100K, this host) | binary size | algorithm |
 |------------------|-----------------------------------:|-------------|-----------|
 | `phe-omaha`      | ~60 ns / hand                      | ~22 MB      | path1 noflush table + path2/3 dispatch via phe-holdem |
-| `phe-omaha-fast` | ~33-35 ns batch / ~37 ns single    | ~30 MB      | HenryRLee perfect-hash port (multiset-hash + best-of-60 precomputed) |
+| `phe-omaha-fast` | ~58 ns batch / ~144 ns single      | ~30 MB      | HenryRLee perfect-hash port (multiset-hash + best-of-60 precomputed) |
 
 `phe-omaha-fast` adds an `evaluate_plo4_batch` API that uses software
 `_mm_prefetch` to hide DRAM latency. On 100K cold-cache fixtures this
