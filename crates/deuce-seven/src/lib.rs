@@ -27,6 +27,7 @@ pub use phe_holdem::{get_hand_category, parse_hand, HandCategory};
 /// `Strength = Reverse<u16>`: smaller raw 16-bit rank = weaker as a
 /// Hold'em high hand = stronger as 2-7. Wrapping with `Reverse` makes
 /// the trait contract (higher = stronger) hold.
+#[derive(Default, Clone, Copy, Debug)]
 pub struct DeuceSevenLowRule;
 
 impl DeuceSevenLowRule {

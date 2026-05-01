@@ -37,6 +37,7 @@ pub use eval::evaluate_plo4_cards;
 /// recover it from the Cactus-Kev rank ranges; for ordinary
 /// strength comparisons (which is what solvers / showdowns need)
 /// the flat value works directly.
+#[derive(Default, Clone, Copy, Debug)]
 pub struct OmahaHighRule;
 
 impl OmahaHighRule {

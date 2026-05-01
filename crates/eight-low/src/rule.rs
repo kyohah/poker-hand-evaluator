@@ -8,6 +8,7 @@ use std::cmp::Reverse;
 /// (`None` < `Some`), `Reverse` (smaller rank = better) yields the
 /// expected ordering: any qualifying hand beats any non-qualifying
 /// hand, and within qualifying hands the smaller rank wins.
+#[derive(Default, Clone, Copy, Debug)]
 pub struct EightLowQualifiedRule;
 
 impl EightLowQualifiedRule {
@@ -25,6 +26,7 @@ impl EightLowQualifiedRule {
 /// Same lookup as [`EightLowQualifiedRule`], but every hand returns a
 /// rank — straights and flushes do not exist in A-5 lowball; pairs
 /// matter and the wheel `A-2-3-4-5` is the nuts.
+#[derive(Default, Clone, Copy, Debug)]
 pub struct AceFiveLowRule;
 
 impl AceFiveLowRule {

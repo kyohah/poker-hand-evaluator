@@ -68,17 +68,25 @@ impl Hand {
 
     /// Returns whether `card` is contained in the hand.
     ///
-    /// `card` must be in the range `[0, 51]`.
+    /// # Safety
+    ///
+    /// `card` must be in the range `[0, 51]`. Out-of-range inputs are
+    /// undefined behaviour (the hot-path uses `get_unchecked`).
     #[inline]
     pub fn contains(&self, card: usize) -> bool {
+        // SAFETY: caller-asserted `card ∈ [0, 51]` indexes CARDS (length 52).
         (self.mask & unsafe { *CARDS.get_unchecked(card) }.1) != 0
     }
 
     /// Returns a new hand with `card` added.
     ///
-    /// `card` must be in the range `[0, 51]` and must not already be present.
+    /// # Safety
+    ///
+    /// `card` must be in the range `[0, 51]` and must not already be
+    /// present in the hand. Out-of-range inputs are undefined behaviour.
     #[inline]
     pub fn add_card(&self, card: usize) -> Self {
+        // SAFETY: caller-asserted `card ∈ [0, 51]` indexes CARDS (length 52).
         let (k, m) = unsafe { *CARDS.get_unchecked(card) };
         Self {
             key: self.key.wrapping_add(k),
@@ -88,9 +96,13 @@ impl Hand {
 
     /// Returns a new hand with `card` removed.
     ///
-    /// `card` must be in the range `[0, 51]` and must currently be present.
+    /// # Safety
+    ///
+    /// `card` must be in the range `[0, 51]` and must currently be
+    /// present in the hand. Out-of-range inputs are undefined behaviour.
     #[inline]
     pub fn remove_card(&self, card: usize) -> Self {
+        // SAFETY: caller-asserted `card ∈ [0, 51]` indexes CARDS (length 52).
         let (k, m) = unsafe { *CARDS.get_unchecked(card) };
         Self {
             key: self.key.wrapping_sub(k),
@@ -155,11 +167,19 @@ pub fn evaluate_via_lookup(hand: &Hand, lookup: &[u16], lookup_flush: &[u16]) ->
     let is_flush = hand.key & FLUSH_MASK;
     if is_flush > 0 {
         let flush_key = (hand.mask >> (4 * is_flush.leading_zeros())) as u16;
+        // SAFETY: 13-bit flush_key (mask shifted by a per-suit alignment)
+        // indexes a flush-rank table sized for the variant; caller-asserted
+        // 5..=7 cards keeps `flush_key < lookup_flush.len()`.
         unsafe { *lookup_flush.get_unchecked(flush_key as usize) }
     } else {
         let rank_key = hand.key as u32 as usize;
+        // SAFETY: `rank_key >> OFFSET_SHIFT` is the upper bucket of the
+        // perfect-hash key, OFFSETS is sized for that bucket count.
         let offset = unsafe { *OFFSETS.get_unchecked(rank_key >> OFFSET_SHIFT) as usize };
         let hash_key = rank_key.wrapping_add(offset);
+        // SAFETY: by construction of OFFSETS (first-fit-decreasing
+        // displacement), `rank_key + offset` lands inside the dense
+        // `lookup` table for any 5..=7 card hand.
         unsafe { *lookup.get_unchecked(hash_key) }
     }
 }

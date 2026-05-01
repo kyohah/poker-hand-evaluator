@@ -103,19 +103,23 @@ impl Hand {
     /// Returns whether the `card` is included in `self`.
     ///
     /// # Safety
-    /// `card` must be in the range \[0, 51\].
+    /// `card` must be in the range \[0, 51\]. Out-of-range inputs are
+    /// undefined behaviour (the hot-path uses `get_unchecked`).
     #[inline]
     pub fn contains(&self, card: usize) -> bool {
+        // SAFETY: caller-asserted `card ∈ [0, 51]` indexes CARDS (length 52).
         (self.mask & unsafe { *CARDS.get_unchecked(card) }.1) != 0
     }
 
     /// Returns a new hand struct where `card` is added to `self`.
     ///
     /// # Safety
-    /// `card` must be in the range \[0, 51\] and must not be already included in `self`.
-    /// Adding duplicate cards or cards outside this range causes undefined behavior.
+    /// `card` must be in the range \[0, 51\] and must not already be
+    /// included in `self`. Adding duplicate cards or cards outside this
+    /// range is undefined behaviour.
     #[inline]
     pub fn add_card(&self, card: usize) -> Self {
+        // SAFETY: caller-asserted `card ∈ [0, 51]` indexes CARDS (length 52).
         let (k, m) = unsafe { *CARDS.get_unchecked(card) };
         Self {
             key: self.key.wrapping_add(k),
@@ -126,9 +130,11 @@ impl Hand {
     /// Returns a new hand struct where `card` is removed from `self`.
     ///
     /// # Safety
-    /// `card` must be in the range \[0, 51\] and must be included in `self`.
+    /// `card` must be in the range \[0, 51\] and must currently be
+    /// present in `self`. Out-of-range inputs are undefined behaviour.
     #[inline]
     pub fn remove_card(&self, card: usize) -> Self {
+        // SAFETY: caller-asserted `card ∈ [0, 51]` indexes CARDS (length 52).
         let (k, m) = unsafe { *CARDS.get_unchecked(card) };
         Self {
             key: self.key.wrapping_sub(k),
@@ -140,12 +146,15 @@ impl Hand {
     ///
     /// Lower value = stronger hand. 0 = A-2-3-4-5 (the wheel, best possible).
     ///
-    /// # Panics
-    /// Behavior is undefined when `self.len() < 5` or `self.len() > 7`.
+    /// # Safety
+    /// Behaviour is undefined when `self.len() < 5` or `self.len() > 7`.
     /// Only 5, 6, or 7 card hands produce valid results.
     #[inline]
     pub fn evaluate(&self) -> u16 {
         let rank_key = self.key as u32 as usize;
+        // SAFETY: 5..=7-card invariant keeps `rank_key >> OFFSET_SHIFT`
+        // inside OFFSETS, and the displaced `rank_key + offset` lands
+        // inside the dense LOOKUP table (perfect-hash by construction).
         let offset = unsafe { *OFFSETS.get_unchecked(rank_key >> OFFSET_SHIFT) as usize };
         let hash_key = rank_key.wrapping_add(offset);
         unsafe { *LOOKUP.get_unchecked(hash_key) }

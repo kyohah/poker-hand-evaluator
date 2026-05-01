@@ -5,6 +5,7 @@ use phe_holdem_assets::{LOOKUP, LOOKUP_FLUSH};
 ///
 /// Higher returned `u16` = stronger hand. Bits 12-15 encode the
 /// [`crate::HandCategory`]; bits 0-11 encode the within-category index.
+#[derive(Default, Clone, Copy, Debug)]
 pub struct HighRule;
 
 impl HighRule {

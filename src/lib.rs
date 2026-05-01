@@ -192,6 +192,7 @@ impl HandRule for BadugiRule {
 /// split-pot games; this is just a convenience for callers that want
 /// both scores in one shot. Callers are responsible for split-pot
 /// awarding.
+#[derive(Default, Clone, Copy, Debug)]
 pub struct HiLoRule<H: HandRule, L: HandRule> {
     pub hi: H,
     pub lo: L,
