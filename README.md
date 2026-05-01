@@ -79,43 +79,41 @@ DLL path, criterion harness).
 
 ### Reference numbers from other libraries
 
-For order-of-magnitude context, two other open-source poker
-evaluators publish their own benchmark numbers in their READMEs.
-The numbers below are reproduced verbatim from those projects —
-they were run on different machines, different languages, and
-different harnesses, so the cross-row comparison is **not**
-apples-to-apples and shouldn't be read as "X is faster than Y" in
-any rigorous sense. They're useful as ballpark calibration only.
+For Omaha, the upstream `HenryRLee/PokerHandEvaluator` C++ library
+is the closest comparison. To make it apples-to-apples we re-built
+the C reference on **the same host** (`clang-cl /O2 -flto
+-fuse-ld=lld`) with the same fixture set as our criterion bench,
+rather than quoting their published numbers from a different
+machine. See `crates/omaha-fast/BENCH_NOTES.md` for the
+reproducibility recipe.
 
-| Variant | [`Nerdmaster/poker`](https://github.com/Nerdmaster/poker) (Go) | [`HenryRLee/PokerHandEvaluator`](https://github.com/HenryRLee/PokerHandEvaluator) (C++) | `phe-*` (this repo, Rust) |
-|---|---|---|---|
-| 5-card | ~6.4 ns | ~13.8 ns | ~1.4 ns |
-| 7-card | ~145 ns | ~17.8 ns | ~1.5 ns |
-| Omaha 4-hole | ~416 ns | ~30.5 ns | ~62 ns |
+10 000 random PLO4 hands, deterministic xorshift64 seed
+`0xDEAD_BEEF_CAFE_BABE`, this host:
 
-Caveats / things this table does not capture:
+| build                                  | speed (ns / eval) |
+|----------------------------------------|-------------------|
+| Rust `phe-omaha-fast` (LLVM)           | ~35 ns (best 34.9) |
+| C clang-cl `/O2 -flto -fuse-ld=lld`    | ~35 ns (best 34.7) |
+| C MSVC `cl /O2 /GL /LTCG`              | ~46 ns            |
+| C MSVC `cl /O2` (no LTO)               | ~52 – 62 ns       |
+| HenryRLee published number, **their host** (gcc) | 30.5 ns |
 
-- **Different machines.** `Nerdmaster/poker`'s numbers are from a
-  16-core Go test runner, `HenryRLee/PokerHandEvaluator`'s from a
-  2.6 GHz 12-core Xeon-class CPU, and the `phe-*` numbers above are
-  from an Intel i9-12900H laptop boosting to ~5 GHz. Even normalising
-  for clock, individual numbers can shift by 1.5–2× across machines.
-- **Different scope.** `Nerdmaster/poker` is a complete poker library
-  with `Card` / `Deck` / `Hand` / dealing / ranking utilities — not
-  just an evaluator. `HenryRLee/PokerHandEvaluator` ships 5/6/7-card
-  + PLO4/5/6 evaluators across multiple languages.  `phe-*` is just
-  the inner-hot-path evaluator, designed to be embedded in a solver
-  / equity calculator that supplies its own deal & deck logic.
-- **Different design goals.**
-  - `phe-holdem` follows b-inary's "one perfect-hash lookup" design,
-    so 5/6/7-card hands cost about the same. `Nerdmaster/poker`
-    enumerates `C(7, 5) = 21` 5-card sub-hands for 7-card; that's
-    where most of its 7-card cost goes.
-  - For Omaha, `HenryRLee/PokerHandEvaluator`'s PLO4 table is **30.5
-    MB** vs `phe-omaha`'s **22 MB** — similar size, but their
-    throughput is roughly 2× ours. The gap looks algorithmic (denser
-    key encoding) rather than language-level, and is the most
-    interesting honest finding from this comparison.
+When both are compiled with LLVM at `-O2 +LTO`, the Rust port and
+the C reference are **at parity on this host** (within ~0.2 ns,
+indistinguishable from noise). The 30.5 ns HenryRLee published is
+on a different machine; we cannot reproduce that absolute number
+here, but Rust matches what an LLVM-built C does. The gap to their
+published figure is microarchitectural (CPU clock and L3 hit-rate
+on a different machine), not algorithmic or language-level.
+
+For the smaller variants the same picture holds at order-of-magnitude:
+[`Nerdmaster/poker`](https://github.com/Nerdmaster/poker) (Go) does
+~6.4 ns 5-card and ~145 ns 7-card on its own runner;
+`HenryRLee/PokerHandEvaluator` publishes ~13.8 / ~17.8 ns; on this
+host `phe-holdem` lands at ~1.4 / ~1.5 ns. Different machines,
+languages, and harnesses, so the cross-library numbers are
+ballpark only — but the same-host LLVM C-vs-Rust parity finding
+above is the rigorous one.
 
 Memory-footprint side-by-side (numbers from each project's own
 README; for `phe-*` these are runtime u16/i32 array sizes):

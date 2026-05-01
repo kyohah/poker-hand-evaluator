@@ -29,6 +29,7 @@ use phe_omaha_fast_assets::{FLUSH_PLO4, NOFLUSH_PLO4};
 use core::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
 
 const PADDING: [i32; 3] = [0x0000, 0x2000, 0x6000];
+#[cfg(target_arch = "x86_64")]
 const PF_AHEAD: usize = 8;
 
 /// Computes the NOFLUSH_PLO4 index for a single hand. Pure CPU work,
