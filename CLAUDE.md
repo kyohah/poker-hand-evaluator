@@ -34,12 +34,21 @@ caller need:
 |------------------|-----------------------------------:|-------------|-----------|
 | `phe-omaha`      | ~60 ns / hand                      | ~22 MB      | path1 noflush table + path2/3 dispatch via phe-holdem |
 | `phe-omaha-fast` | ~58 ns batch / ~144 ns single      | ~30 MB      | HenryRLee perfect-hash port (multiset-hash + best-of-60 precomputed) |
+| `phe-omaha-fast` (`cuda` feat.) | **~0.5 ns** device-resident @ 1M  | +runtime cudarc | same kernel ported to NVRTC, 1 thread = 1 hand |
 
 `phe-omaha-fast` adds an `evaluate_plo4_batch` API that uses software
 `_mm_prefetch` to hide DRAM latency. On 100K cold-cache fixtures this
 is ~2.2× faster than the single-hand loop and matches what same-host
-`clang-cl /O2 -flto` gets on the C reference. See
-`crates/omaha-fast/BENCH_NOTES.md` for the full methodology.
+`clang-cl /O2 -flto` gets on the C reference.
+
+The optional `cuda` feature builds an NVRTC-compiled kernel
+(`PloEvalContext`). At 1 M hands the device-resident path runs at
+~0.5 ns / hand (~80× the CPU); below ~3 K hands the CPU is faster
+because of kernel launch overhead. The constructor accepts a shared
+`Arc<CudaContext>` and the launch API takes a caller-supplied
+`CudaStream`, so the eval kernel can be captured into a solver's
+existing CUDA graph. See `crates/omaha-fast/BENCH_NOTES.md` for the
+full methodology, GPU vs CPU throughput table, and integration recipe.
 
 ## No parallelism in `phe-*` crates
 
@@ -66,6 +75,16 @@ threads typically loses to cache contention.
 **Single-thread SIMD intrinsics are fine** — `_mm_prefetch`, AVX2
 gather, packed integer ops, etc. The rule is about thread-level
 concurrency, not vectorisation.
+
+**GPU is also fine** — see `phe-omaha-fast`'s `cuda` feature
+(NVRTC-compiled kernel, 1 thread = 1 hand). The "no parallelism"
+rule is specifically about CPU thread-level concurrency thrashing
+shared L3; a GPU kernel runs on a separate device with its own
+memory hierarchy and doesn't conflict with the outer solver's
+CPU-side parallelism. New variant crates that have a GPU equivalent
+should follow the same pattern: optional `cuda` feature, lazy
+`PloEvalContext`-style table upload, dual `evaluate_batch` /
+`evaluate_batch_device` entry points.
 
 This rule applies to benches and examples in the eval crates too,
 so `bench/history.csv` numbers stay comparable across runs.

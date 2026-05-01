@@ -8,6 +8,9 @@ pub mod flush_5card;
 pub mod hash;
 pub mod eval;
 
+#[cfg(feature = "cuda")]
+pub mod cuda;
+
 pub use dp::DP;
 
 pub use batch::evaluate_plo4_batch;

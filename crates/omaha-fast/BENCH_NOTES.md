@@ -141,6 +141,104 @@ The next meaningful improvement is a cache-friendlier table layout
 existing kernel — both LLVM C and LLVM Rust have already squeezed
 this algorithm dry.
 
+## CUDA backend (`cuda` feature, 2026-05-01)
+
+Optional GPU backend. 1 thread = 1 hand kernel; FLUSH/NOFLUSH/DP
+tables uploaded to device once on `PloEvalContext::new()`. Two entry
+points:
+
+* `evaluate_batch(&[(hole, board)])` — host slice in, host Vec out.
+  Includes upload + kernel + download every call.
+* `evaluate_batch_device(d_holes, d_boards, d_out, n)` — caller
+  already owns device buffers. Zero PCIe per call. This is the path
+  a GPU-resident solver should use.
+
+Both share the same kernel. NVRTC compilation + ~30 MB table upload
+costs ~1 s the first time, amortised across the process.
+
+### Throughput at varying batch size
+
+NVIDIA GPU + LLVM Rust CPU on the same host, criterion `--quick`,
+2026-05-01:
+
+| N (hands)  | CPU batch    | GPU host (with PCIe) | GPU device-resident |
+|-----------:|-------------:|---------------------:|--------------------:|
+|      1 000 |  **27 ns/h** |             82 ns/h  |            22 ns/h  |
+|     10 000 |     38 ns/h  |          13.3 ns/h   |        **2.0 ns/h** |
+|    100 000 |     69 ns/h  |          6.2 ns/h    |       **0.71 ns/h** |
+|  1 000 000 |     43 ns/h  |          7.2 ns/h    |       **0.51 ns/h** |
+
+(CPU 1K is fast because the access set fits in L3; CPU 100K is the
+cold-cache regime that motivates the prefetch design.)
+
+Crossover points:
+
+* **GPU host vs CPU**: ~3-5 K hands. Below that, kernel launch +
+  upload overhead exceeds the kernel time. Above that, GPU wins
+  6-12× even with PCIe round-trip.
+* **GPU device vs CPU**: GPU wins everywhere above N = 1 K, but the
+  big asymmetry shows up at scale: **~100× at 100 K**, ~80× at 1 M.
+
+When the user's solver already has hands and boards on the GPU
+(matrix-form CFR with terminal evaluation in-kernel), the
+`_device` path is essentially free: 0.5 ns/hand asymptotic, no PCIe.
+This is the case PLO4 / Stud high / multiway equity actually live
+in — the pure single-eval CUDA worry ("kernel launch overhead is
+slower than CPU") doesn't apply once you batch.
+
+### Solver integration recipe
+
+`poker-cuda-solver` and similar GPU-resident callers should:
+
+1. Share the `Arc<CudaContext>` instead of letting `PloEvalContext`
+   spin up its own:
+   ```rust
+   let ctx: Arc<CudaContext> = solver_context();
+   let plo_eval = PloEvalContext::from_context(ctx.clone())?;
+   ```
+2. Launch on the solver's per-pass stream so the eval kernel orders
+   correctly with the surrounding CFR forward / backward / showdown
+   kernels (and so it can be captured into the same CUDA graph):
+   ```rust
+   plo_eval.evaluate_batch_on_stream(
+       &solver_stream,
+       &d_holes,
+       &d_boards,
+       &mut d_ranks_i32,
+       n,
+   )?;
+   ```
+3. The kernel writes **i32 Cactus-Kev rank** (`[1, 7462]`, lower =
+   stronger). The workspace's `HandRule::evaluate` convention is
+   "u16 higher = stronger", so the showdown kernel that consumes
+   strength values needs `strength = 7463 - rank`. Two options:
+   * Run a one-line kernel
+     `out_u16[i] = (unsigned short)(7463 - in_i32[i])` after
+     `evaluate_batch_on_stream`. Trivially fused with the next
+     showdown kernel if you write a custom backward pass.
+   * If you already have `fill_showdown_cfv_*` kernels, pass the
+     `i32 rank` array and apply `7463 - rank` inside the strength
+     comparison (no extra memory traffic).
+
+The kernel uses zero shared memory and `block_dim = 256`, so it's
+easy to schedule alongside the solver's heavier kernels (which on
+T4 want 2 blocks/SM with `block_dim = 512`). No occupancy conflict.
+
+### Reproducing
+
+NVRTC must be on `PATH`. On Windows with CUDA Toolkit 13.2:
+```sh
+PATH="/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64:$PATH" \
+  cargo bench -p phe-omaha-fast --bench eval_cuda --features cuda
+```
+
+Parity (GPU output bit-exact == CPU `evaluate_plo4_cards`) is
+guarded by `tests/cuda_parity.rs`:
+```sh
+PATH="/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64:$PATH" \
+  cargo test -p phe-omaha-fast --release --features cuda -- --ignored
+```
+
 ## Negative results recorded here so we don't retry them
 
 ### AVX2 8-wide pass-1 (`hash_quinary` SIMD across hands, 2026-05-01)
