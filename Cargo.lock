@@ -366,6 +366,10 @@ dependencies = [
 [[package]]
 name = "phe-omaha-assets"
 version = "0.1.0"
+dependencies = [
+ "phe-core",
+ "phe-holdem-assets",
+]
 
 [[package]]
 name = "phe-omaha-fast"
