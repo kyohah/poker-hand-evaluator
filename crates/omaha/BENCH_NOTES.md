@@ -141,6 +141,44 @@ The next meaningful improvement is a cache-friendlier table layout
 existing kernel — both LLVM C and LLVM Rust have already squeezed
 this algorithm dry.
 
+## Suit padding bit-trick (M-series host, 2026-05-01)
+
+Replaced the per-suit `[i32; 4]` board/hole counters and the 4-iter
+flush search with two packed-`u16` counters. Each card adds
+`SUIT_INC[c] = 1u16 << (4 * (c & 3))` to the matching nibble. The
++5 / +6 biases (`SUIT_INIT_BOARD = 0x5555`, `SUIT_INIT_HOLE =
+0x6666`) make bit 3 of a nibble light up exactly when that suit has
+`scb >= 3` (board) or `sch >= 2` (hole), so the flush-reachable test
+collapses to a single `(scb_packed & sch_packed) & 0x8888`.
+
+Bench (criterion default sample, 100K cold-cache fixtures, Apple
+Silicon M-series; baseline is the same code one commit earlier):
+
+| | baseline | after | change |
+|---|---:|---:|---:|
+| `plo4_eval_100k_random_single` | 2.98 ms | **2.39 ms** | **-19.8%** (~6 ns/hand) |
+| `plo4_eval_100k_random_batch`  | 3.03 ms | **2.40 ms** | **-20.8%** (~6 ns/hand) |
+| `plo4_pass1_only_100k`         | 1.57 ms | 1.57 ms     | unchanged (expected — bench inlines its own scalar path) |
+
+p-values reported by criterion were `0.00 < 0.05` for both single
+and batch; the pass1_only confidence interval crossed zero, as
+designed.
+
+The win is well above the ~1-3 ns predicted from op-count savings
+alone. The previous "packed bitmap for suit counting" experiment
+(below) tried to encode rank+suit into a single `u64` and **lost**
+~5 ns / hand because it serialised 5 ORs into a dependency chain;
+this design avoids that by keeping board and hole in two parallel
+adds with no inter-card dependencies, while still collapsing the
+flush check to one AND. On Apple Silicon's wide back-end the two
+chains issue concurrently and the small `SUIT_INC[52]` table
+(104 bytes) fits trivially in L1.
+
+Same change applies to both `evaluate_plo4_cards` (single-call) and
+`evaluate_with_noflush_idx` (batch path); see
+`docs/research/plo4-cpu-optimization-techniques.md` (technique #3)
+for the full design.
+
 ## CUDA backend (`cuda` feature, 2026-05-01)
 
 Optional GPU backend. 1 thread = 1 hand kernel; FLUSH/NOFLUSH/DP
@@ -274,6 +312,49 @@ calculus may flip — but on this host the simpler scalar wins. Picking
 early-exit `hash_quinary` for `noflush_index_scalar` (replacing the
 batch-oriented branchless variant) is the actual win that came out
 of this exercise.
+
+### `wide::u8x16` SIMD quinary increments (M-series, 2026-05-01)
+
+After landing the suit-padding bit-trick (above) we tried the
+companion idea from the same research note: replace the 9 scalar
+`quinary[c >> 2] += 1` increments inside `evaluate_plo4_cards` and
+`noflush_index_scalar` with 9 `u8x16` adds, accumulating per-card
+one-hot vectors from a precomputed `CARD_QUINARY: [[u8; 16]; 52]`
+table (832 bytes, fits in L1).
+
+It **regressed** every bench by 1-3%:
+
+| | post-B baseline | with SIMD | change |
+|---|---:|---:|---:|
+| `plo4_eval_100k_random_single` | 2.39 ms | 2.44 ms | **+2.1%** |
+| `plo4_eval_100k_random_batch`  | 2.40 ms | 2.47 ms | **+2.8%** |
+| `plo4_pass1_only_100k`         | 1.57 ms | 1.60 ms | +1.6% (noise + layout) |
+
+Why the SIMD form lost on Apple Silicon:
+
+1. The 9 scalar increments touch 9 different (rank, board/hole) byte
+   slots, so they're already independent and dual-issue easily on
+   the wide M-series back-end. The SIMD form adds a 16-byte
+   read-modify-write per card, which is more memory traffic for the
+   same arithmetic.
+2. `wide::u8x16` lowers to two NEON `add` instructions per add (no
+   single-instruction 16-byte add on AArch64 vector pipelines that
+   matter at this throughput), and the resulting dependency chain
+   on the running accumulator is longer than the parallel scalar
+   stores.
+3. The final `u8x16 -> [u8; 13]` extract + `copy_from_slice` adds
+   instructions the scalar form doesn't pay.
+
+Same shape as the AVX2 8-wide negative result above: a SIMD form
+that has more total work but parallelises differently, on a host
+where the scalar form is already bottlenecked elsewhere (here, the
+NOFLUSH DRAM lookup; in the AVX2 case, the early-exit advantage of
+the scalar form). Reverted.
+
+If revisiting on a uarch where 16-byte vector add is genuinely
+single-cycle and scalar byte stores are serialised (e.g. some
+in-order ARM cores, or AMD Zen-1-class), re-bench from the post-B
+baseline before switching.
 
 ### Packed bitmap for suit counting (batch path, 2026-05-01)
 
