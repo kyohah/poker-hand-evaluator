@@ -149,6 +149,11 @@ fn evaluate_with_noflush_idx(
 /// `hands` and `out` must have the same length. Each entry of `hands`
 /// is `(hole, board)` with hole = 4 cards and board = 5 cards.
 ///
+/// Allocates a temporary `Vec<usize>` of length `hands.len()` for the
+/// pass-1 indices. Solver loops that batch-evaluate millions of hands
+/// repeatedly should prefer [`evaluate_plo4_batch_into`], which takes
+/// a caller-owned scratch buffer and reuses it across calls.
+///
 /// Internally:
 /// 1. Pass 1 — compute the NOFLUSH_PLO4 index for every hand (no big
 ///    memory accesses, ~10 ns / hand CPU).
@@ -156,6 +161,19 @@ fn evaluate_with_noflush_idx(
 ///    evaluate hand `i`. Memory latency on the large table is hidden
 ///    behind the in-flight prefetches.
 pub fn evaluate_plo4_batch(hands: &[([u8; 4], [u8; 5])], out: &mut [i32]) {
+    let mut scratch: Vec<usize> = Vec::with_capacity(hands.len());
+    evaluate_plo4_batch_into(hands, out, &mut scratch);
+}
+
+/// Same as [`evaluate_plo4_batch`] but with a caller-supplied scratch
+/// buffer for the pass-1 noflush indices. Allows zero allocations across
+/// repeated calls; cleared and resized internally so any state in
+/// `scratch` is overwritten.
+pub fn evaluate_plo4_batch_into(
+    hands: &[([u8; 4], [u8; 5])],
+    out: &mut [i32],
+    scratch: &mut Vec<usize>,
+) {
     assert_eq!(hands.len(), out.len(), "hands / out length mismatch");
     let n = hands.len();
 
@@ -164,9 +182,10 @@ pub fn evaluate_plo4_batch(hands: &[([u8; 4], [u8; 5])], out: &mut [i32]) {
     // by `noflush_index_scalar`) beat both the branchless variant and
     // a hand-written AVX2 8-wide gather (see BENCH_NOTES.md, "Negative
     // results").
-    let mut indices: Vec<usize> = Vec::with_capacity(n);
+    scratch.clear();
+    scratch.reserve(n);
     for (hole, board) in hands {
-        indices.push(noflush_index_scalar(
+        scratch.push(noflush_index_scalar(
             board[0] as i32,
             board[1] as i32,
             board[2] as i32,
@@ -183,7 +202,7 @@ pub fn evaluate_plo4_batch(hands: &[([u8; 4], [u8; 5])], out: &mut [i32]) {
     #[cfg(target_arch = "x86_64")]
     unsafe {
         let table = NOFLUSH_PLO4.as_ptr();
-        for &idx in indices.iter().take(PF_AHEAD.min(n)) {
+        for &idx in scratch.iter().take(PF_AHEAD.min(n)) {
             _mm_prefetch::<_MM_HINT_T0>(table.add(idx) as *const i8);
         }
     }
@@ -194,7 +213,7 @@ pub fn evaluate_plo4_batch(hands: &[([u8; 4], [u8; 5])], out: &mut [i32]) {
         unsafe {
             let j = i + PF_AHEAD;
             if j < n {
-                _mm_prefetch::<_MM_HINT_T0>(NOFLUSH_PLO4.as_ptr().add(indices[j]) as *const i8);
+                _mm_prefetch::<_MM_HINT_T0>(NOFLUSH_PLO4.as_ptr().add(scratch[j]) as *const i8);
             }
         }
         let (hole, board) = &hands[i];
@@ -208,7 +227,7 @@ pub fn evaluate_plo4_batch(hands: &[([u8; 4], [u8; 5])], out: &mut [i32]) {
             hole[1] as i32,
             hole[2] as i32,
             hole[3] as i32,
-            indices[i],
+            scratch[i],
         );
     }
 }
@@ -276,5 +295,35 @@ mod tests {
             }
         }
         assert_eq!(mismatches, 0, "{} batch / single mismatches", mismatches);
+    }
+
+    /// `evaluate_plo4_batch_into` with a reused scratch buffer must
+    /// match the allocating `evaluate_plo4_batch` path on every call,
+    /// even when the second batch is shorter than the first.
+    #[test]
+    fn batch_into_reuses_scratch() {
+        let big = deal_hand(0xDEAD_BEEF_BAAD_F00D, 500);
+        let small = deal_hand(0x1234_5678_9ABC_DEF0, 50);
+
+        let mut alloc_out_big = vec![0i32; big.len()];
+        let mut alloc_out_small = vec![0i32; small.len()];
+        evaluate_plo4_batch(&big, &mut alloc_out_big);
+        evaluate_plo4_batch(&small, &mut alloc_out_small);
+
+        let mut scratch: Vec<usize> = Vec::new();
+        let mut into_out_big = vec![0i32; big.len()];
+        let mut into_out_small = vec![0i32; small.len()];
+        evaluate_plo4_batch_into(&big, &mut into_out_big, &mut scratch);
+        // Capacity should now be reused for the smaller call.
+        let cap_after_big = scratch.capacity();
+        evaluate_plo4_batch_into(&small, &mut into_out_small, &mut scratch);
+        assert_eq!(
+            scratch.capacity(),
+            cap_after_big,
+            "scratch must not reallocate when shrinking",
+        );
+
+        assert_eq!(into_out_big, alloc_out_big);
+        assert_eq!(into_out_small, alloc_out_small);
     }
 }

@@ -20,7 +20,7 @@ pub mod cuda;
 
 pub use dp::DP;
 
-pub use batch::evaluate_plo4_batch;
+pub use batch::{evaluate_plo4_batch, evaluate_plo4_batch_into};
 pub use eval::evaluate_plo4_cards;
 
 /// Omaha 4-hole high rule.
