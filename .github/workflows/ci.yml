@@ -26,6 +26,64 @@ jobs:
       - run: cargo build --workspace --all-targets
       - run: cargo test --workspace
 
+  # Verify that every documented feature subset of the facade still
+  # compiles. The facade's `default = ["all"]` masks subset breakage
+  # under `cargo test --workspace`; this job catches it explicitly.
+  features:
+    name: feature combos (facade)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - ""
+          - "holdem"
+          - "eight-low"
+          - "deuce-seven"
+          - "omaha"
+          - "badugi"
+          - "holdem,omaha"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --no-default-features --features "${{ matrix.features }}"
+      - run: cargo build --no-default-features --features "${{ matrix.features }}" --tests
+
+  # The cudarc dynamic-loading backend builds without a CUDA toolkit
+  # or driver — only the runtime needs the driver. So we can at least
+  # compile-check the `cuda` feature on a normal Linux runner.
+  cuda-build-check:
+    name: cuda compile-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p phe-omaha --features cuda
+      - run: cargo build -p phe-holdem --features cuda
+      - run: cargo build --features cuda
+
+  msrv:
+    name: MSRV (rust-version pinned in Cargo.toml)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.78.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --workspace
+
+  doc:
+    name: rustdoc
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --workspace --no-deps --all-features
+
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest
