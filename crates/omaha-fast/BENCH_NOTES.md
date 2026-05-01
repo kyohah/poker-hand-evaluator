@@ -140,3 +140,24 @@ The next meaningful improvement is a cache-friendlier table layout
 (phase 2 in the omaha-fast roadmap), not micro-optimisation of the
 existing kernel — both LLVM C and LLVM Rust have already squeezed
 this algorithm dry.
+
+## Negative results recorded here so we don't retry them
+
+### Packed bitmap for suit counting (batch path, 2026-05-01)
+
+Tried replacing the 9 scattered `suit_count_*[c & 3] += 1` /
+`suit_binary_*[c & 3] |= BIT_OF_DIV_4[c]` writes with a single OR of
+9 `1u64 << (16 * suit + rank)` values — same idea as
+`phe-core::Hand` for 7-card hold'em. Per suit, the count is
+`popcount` of the 16-bit window and the rank-bitmap falls out for
+free as the same window's low 13 bits.
+
+Even with tree-reduced ORs, this regressed batch by ~5 ns / hand
+(3.15 → 4.20 ms / 100K). Why: the OR chain has a 5-cycle dependency
+chain (5 cards) that the CPU can't break, while the scattered store
+form lets store-buffer parallelism issue 9 stores out-of-order. The
+wider issue width wins on Skylake-class hosts.
+
+If revisiting on a microarchitecture with narrower stores or wider
+ORs, re-bench from the original `evaluate_with_noflush_idx` form
+before switching.
