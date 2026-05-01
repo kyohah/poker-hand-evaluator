@@ -160,10 +160,7 @@ impl PloEvalContext {
     /// `holes`/`boards` to the device, runs the kernel, downloads
     /// ranks. Synchronous — synchronizes the default stream before
     /// returning.
-    pub fn evaluate_batch(
-        &self,
-        hands: &[([u8; 4], [u8; 5])],
-    ) -> Result<Vec<i32>, CudaEvalError> {
+    pub fn evaluate_batch(&self, hands: &[([u8; 4], [u8; 5])]) -> Result<Vec<i32>, CudaEvalError> {
         let n = hands.len();
         let mut holes_flat = Vec::with_capacity(n * 4);
         let mut boards_flat = Vec::with_capacity(n * 5);

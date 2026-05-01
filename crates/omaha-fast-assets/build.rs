@@ -25,8 +25,16 @@ const NUM_RANKS: usize = 13;
 const HOLE_PAIRS: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
 
 const BOARD_TRIPLES: [(usize, usize, usize); 10] = [
-    (0, 1, 2), (0, 1, 3), (0, 1, 4), (0, 2, 3), (0, 2, 4),
-    (0, 3, 4), (1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4),
+    (0, 1, 2),
+    (0, 1, 3),
+    (0, 1, 4),
+    (0, 2, 3),
+    (0, 2, 4),
+    (0, 3, 4),
+    (1, 2, 3),
+    (1, 2, 4),
+    (1, 3, 4),
+    (2, 3, 4),
 ];
 
 // Padding constants from `evaluator_plo4.c`. Used when scb < 5 or
@@ -74,7 +82,8 @@ fn read_u16_le(path: &std::path::Path, expected_len: usize) -> Vec<u16> {
 }
 
 fn write_u16_le(path: &std::path::Path, data: &[u16]) {
-    let mut f = fs::File::create(path).unwrap_or_else(|e| panic!("create {}: {}", path.display(), e));
+    let mut f =
+        fs::File::create(path).unwrap_or_else(|e| panic!("create {}: {}", path.display(), e));
     let mut buf = Vec::with_capacity(data.len() * 2);
     for &v in data {
         buf.extend_from_slice(&v.to_le_bytes());
@@ -109,16 +118,16 @@ fn build_dp() -> Vec<Vec<Vec<u32>>> {
     }
     // dp[q][n][k] = sum_{j=0}^{q-1} ms[n][k-j].
     let mut dp = vec![vec![vec![0u32; 10]; 14]; 5];
-    for q in 0..5 {
-        for n in 0..14 {
-            for k in 0..10 {
+    for (q, dp_q) in dp.iter_mut().enumerate() {
+        for (n, dp_qn) in dp_q.iter_mut().enumerate() {
+            for (k, dp_qnk) in dp_qn.iter_mut().enumerate() {
                 let mut s = 0u32;
                 for j in 0..q {
                     if k >= j {
                         s += ms[n][k - j];
                     }
                 }
-                dp[q][n][k] = s;
+                *dp_qnk = s;
             }
         }
     }
@@ -161,10 +170,10 @@ fn hash_quinary(q: &[u8; 13], k_init: i32, dp: &[Vec<Vec<u32>>]) -> u32 {
 
 fn hash_binary(binary: u32, mut k: i32, choose: &[Vec<u32>]) -> u32 {
     let mut sum: u32 = 0;
-    let len = 15;
+    let len: i32 = 15;
     for i in 0..len {
         if binary & (1 << i) != 0 {
-            let n = (len - i - 1) as i32;
+            let n = len - i - 1;
             if n >= k {
                 sum = sum.wrapping_add(choose[n as usize][k as usize]);
             }
@@ -214,8 +223,11 @@ fn gen_noflush_plo4(no_flush_5: &[u16], dp: &[Vec<Vec<u32>>]) -> Vec<u16> {
             for &(i, j) in &HOLE_PAIRS {
                 for &(a, b, c) in &BOARD_TRIPLES {
                     let sub = [
-                        hole_ranks[i], hole_ranks[j],
-                        board_ranks[a], board_ranks[b], board_ranks[c],
+                        hole_ranks[i],
+                        hole_ranks[j],
+                        board_ranks[a],
+                        board_ranks[b],
+                        board_ranks[c],
                     ];
                     let sub_quinary = quinary_of(&sub);
                     let h = hash_quinary(&sub_quinary, 5, dp) as usize;
@@ -257,7 +269,12 @@ fn quinary_of(ranks: &[u8; 5]) -> [u8; 13] {
 /// Enumerate all 5-card rank multisets over 13 ranks with per-rank
 /// count ≤ 4 (i.e., reachable from a real deck). Calls `f` with the
 /// quinary histogram for each.
-fn enumerate_quinary_5(q: &mut [u8; 13], rank: usize, remaining: u8, f: &mut impl FnMut(&[u8; 13])) {
+fn enumerate_quinary_5(
+    q: &mut [u8; 13],
+    rank: usize,
+    remaining: u8,
+    f: &mut impl FnMut(&[u8; 13]),
+) {
     if rank == NUM_RANKS {
         if remaining == 0 {
             f(q);
@@ -333,8 +350,14 @@ fn gen_flush_plo4(flush_5: &[u16], choose: &[Vec<u32>]) -> Vec<u16> {
                     // `scb` board flush bits and 2 of the `sch` hole
                     // flush bits. Each sub-hand is a 5-bit single-suit
                     // pattern → eval via `flush_5`.
-                    let board_set: Vec<u32> = (0..13).filter(|i| board_bits & (1 << i) != 0).map(|i| 1u32 << i).collect();
-                    let hole_set: Vec<u32> = (0..13).filter(|i| hole_bits & (1 << i) != 0).map(|i| 1u32 << i).collect();
+                    let board_set: Vec<u32> = (0..13)
+                        .filter(|i| board_bits & (1 << i) != 0)
+                        .map(|i| 1u32 << i)
+                        .collect();
+                    let hole_set: Vec<u32> = (0..13)
+                        .filter(|i| hole_bits & (1 << i) != 0)
+                        .map(|i| 1u32 << i)
+                        .collect();
 
                     let mut best: u16 = u16::MAX;
                     for ht in combinations_of(&hole_set, 2) {

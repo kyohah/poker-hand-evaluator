@@ -56,9 +56,15 @@ fn ordering_parity_1000_random_hands() {
     for _ in 0..n {
         let (hole, board) = sample_hand(&mut rng);
         let fast = evaluate_plo4_cards(
-            board[0] as i32, board[1] as i32, board[2] as i32,
-            board[3] as i32, board[4] as i32,
-            hole[0] as i32, hole[1] as i32, hole[2] as i32, hole[3] as i32,
+            board[0] as i32,
+            board[1] as i32,
+            board[2] as i32,
+            board[3] as i32,
+            board[4] as i32,
+            hole[0] as i32,
+            hole[1] as i32,
+            hole[2] as i32,
+            hole[3] as i32,
         );
         let omaha = OmahaHighRule::evaluate(&hole, &board);
         fast_ranks.push(fast);
@@ -84,8 +90,7 @@ fn ordering_parity_1000_random_hands() {
                 if mismatches < 5 {
                     eprintln!(
                         "MISMATCH at i={i} j={j}: fast=({},{}) omaha=({},{})",
-                        fast_ranks[i], fast_ranks[j],
-                        omaha_ranks[i], omaha_ranks[j]
+                        fast_ranks[i], fast_ranks[j], omaha_ranks[i], omaha_ranks[j]
                     );
                 }
             }

@@ -65,9 +65,9 @@ fn wheel_is_the_nuts() {
 #[test]
 fn any_four_card_badugi_beats_any_three_card_badugi() {
     let four_card_worst = eval("AcKdQhJs"); // 4 different ranks, 4 different suits
-    // 3-card best: A♣ 2♦ 3♥ (with one suit-duplicate forcing a drop).
-    // Construct: A♣ 2♦ 3♥ + (something that pairs the top with one of these
-    // by either rank or suit). 3♣ pairs suit with A♣ → forced 3-badugi.
+                                            // 3-card best: A♣ 2♦ 3♥ (with one suit-duplicate forcing a drop).
+                                            // Construct: A♣ 2♦ 3♥ + (something that pairs the top with one of these
+                                            // by either rank or suit). 3♣ pairs suit with A♣ → forced 3-badugi.
     let three_card_best = eval("Ac2d3h3c");
     assert!(four_card_worst > three_card_best);
 }

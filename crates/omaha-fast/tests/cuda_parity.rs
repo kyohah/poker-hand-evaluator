@@ -105,8 +105,15 @@ fn cuda_solver_integration_path() {
 
     for (i, (hole, board)) in hands.iter().enumerate() {
         let cpu = evaluate_plo4_cards(
-            board[0] as i32, board[1] as i32, board[2] as i32, board[3] as i32, board[4] as i32,
-            hole[0] as i32, hole[1] as i32, hole[2] as i32, hole[3] as i32,
+            board[0] as i32,
+            board[1] as i32,
+            board[2] as i32,
+            board[3] as i32,
+            board[4] as i32,
+            hole[0] as i32,
+            hole[1] as i32,
+            hole[2] as i32,
+            hole[3] as i32,
         );
         assert_eq!(cpu, gpu_out[i], "mismatch at {i}");
     }
@@ -122,8 +129,15 @@ fn cuda_evaluate_batch_handles_uneven_grid() {
         let gpu_out = ctx.evaluate_batch(&hands).expect("kernel launch");
         for (i, (hole, board)) in hands.iter().enumerate() {
             let cpu = evaluate_plo4_cards(
-                board[0] as i32, board[1] as i32, board[2] as i32, board[3] as i32, board[4] as i32,
-                hole[0] as i32, hole[1] as i32, hole[2] as i32, hole[3] as i32,
+                board[0] as i32,
+                board[1] as i32,
+                board[2] as i32,
+                board[3] as i32,
+                board[4] as i32,
+                hole[0] as i32,
+                hole[1] as i32,
+                hole[2] as i32,
+                hole[3] as i32,
             );
             assert_eq!(cpu, gpu_out[i], "n={n} i={i}");
         }

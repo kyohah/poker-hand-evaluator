@@ -24,7 +24,12 @@ pub enum CudaEvalError {
     #[error("NVRTC compile error: {0}")]
     Compile(#[from] CompileError),
     #[error("input length: got {got} bytes, need {need} ({n} hands × {cards_per_hand} cards)")]
-    InputLength { got: usize, need: usize, n: usize, cards_per_hand: u32 },
+    InputLength {
+        got: usize,
+        need: usize,
+        n: usize,
+        cards_per_hand: u32,
+    },
     #[error("output buffer too small: got {got}, need {need}")]
     OutputTooSmall { got: usize, need: usize },
     #[error("cards_per_hand must be 5, 6, or 7; got {0}")]

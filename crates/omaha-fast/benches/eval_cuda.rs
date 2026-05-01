@@ -23,11 +23,20 @@ const SIZES: &[usize] = &[1_000, 10_000, 100_000, 1_000_000];
 
 struct Rng(u64);
 impl Rng {
-    fn new(s: u64) -> Self { Self(s) }
-    fn next_u64(&mut self) -> u64 {
-        let mut x = self.0; x ^= x << 13; x ^= x >> 7; x ^= x << 17; self.0 = x; x
+    fn new(s: u64) -> Self {
+        Self(s)
     }
-    fn pick(&mut self, n: usize) -> usize { (self.next_u64() as usize) % n }
+    fn next_u64(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        x
+    }
+    fn pick(&mut self, n: usize) -> usize {
+        (self.next_u64() as usize) % n
+    }
 }
 
 fn fixtures(n: usize) -> Vec<([u8; 4], [u8; 5])> {
@@ -35,7 +44,9 @@ fn fixtures(n: usize) -> Vec<([u8; 4], [u8; 5])> {
     let mut out = Vec::with_capacity(n);
     for _ in 0..n {
         let mut deck: [u8; 52] = [0; 52];
-        for i in 0..52 { deck[i] = i as u8; }
+        for (i, slot) in deck.iter_mut().enumerate() {
+            *slot = i as u8;
+        }
         for i in 0..9 {
             let p = i + rng.pick(52 - i);
             deck.swap(i, p);
@@ -123,7 +134,8 @@ fn bench_gpu_device(c: &mut Criterion) {
                     black_box(&d_boards),
                     black_box(&mut d_out),
                     n,
-                ).expect("kernel");
+                )
+                .expect("kernel");
                 stream.synchronize().expect("sync");
             });
         });

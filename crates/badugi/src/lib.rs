@@ -107,8 +107,8 @@ impl BadugiRule {
             let mut sorted = sub_ranks;
             sorted[..idx].sort_unstable_by(|a, b| b.cmp(a));
             let mut tb: u32 = 0;
-            for i in 0..idx {
-                tb = (tb << 4) | (sorted[i] as u32);
+            for &rank in &sorted[..idx] {
+                tb = (tb << 4) | (rank as u32);
             }
 
             if count > best_count || tb < best_tiebreak {

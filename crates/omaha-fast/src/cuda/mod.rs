@@ -20,4 +20,4 @@ pub mod kernel;
 
 mod context;
 
-pub use context::{PloEvalContext, CudaEvalError};
+pub use context::{CudaEvalError, PloEvalContext};

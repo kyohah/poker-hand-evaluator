@@ -47,8 +47,16 @@ const NUM_BOARD: usize = 6188; // C(17, 5)
 const HOLE_PAIRS: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
 
 const BOARD_TRIPLES: [(usize, usize, usize); 10] = [
-    (0, 1, 2), (0, 1, 3), (0, 1, 4), (0, 2, 3), (0, 2, 4),
-    (0, 3, 4), (1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4),
+    (0, 1, 2),
+    (0, 1, 3),
+    (0, 1, 4),
+    (0, 2, 3),
+    (0, 2, 4),
+    (0, 3, 4),
+    (1, 2, 3),
+    (1, 2, 4),
+    (1, 3, 4),
+    (2, 3, 4),
 ];
 
 fn binom_table() -> [[u32; 6]; 17] {
@@ -145,8 +153,7 @@ fn main() {
                                         for &(i, j) in &HOLE_PAIRS {
                                             for &(a, b, c) in &BOARD_TRIPLES {
                                                 let r = eval_no_flush_5([
-                                                    hole[i], hole[j],
-                                                    board[a], board[b], board[c],
+                                                    hole[i], hole[j], board[a], board[b], board[c],
                                                 ]);
                                                 if r > best {
                                                     best = r;

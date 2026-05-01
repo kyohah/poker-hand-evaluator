@@ -5,6 +5,24 @@
 //!      variant crate would.
 //!   2. The Hold'em -> eight-low encoding translation is correct.
 //!   3. HiLoRule composes high and low rules into a tuple Strength.
+//!
+//! Requires every variant feature (the default `all`); under
+//! narrower feature subsets (e.g. `--features holdem` alone) this
+//! file is gated out so feature-gate spot-checks compile.
+
+#![cfg(all(
+    feature = "holdem",
+    feature = "eight-low",
+    feature = "deuce-seven",
+    feature = "omaha",
+    feature = "badugi"
+))]
+// `card = rank * 4 + suit` literals are kept verbose with the
+// explicit `+ 0` for the club suit and `0 *` / `12 *` for the rank
+// 2 / A so every card encoding reads the same way; clippy's
+// `identity_op` / `erasing_op` would obscure that.
+#![allow(clippy::identity_op)]
+#![allow(clippy::erasing_op)]
 
 use poker_hand_evaluator::{
     AceFiveLowRule, BadugiRule, DeuceSevenLowRule, EightLowQualifiedRule, HandRule, HiLoRule,
@@ -35,16 +53,19 @@ fn high_rule_matches_underlying_evaluator() {
 fn eight_low_rule_qualifies_correctly_via_facade() {
     // 8-low qualifying: A 2 3 4 8 + 2 fillers
     let cards = [
-        ACE_S,           // ace
-        TWOS,            // 2c
-        1 * 4 + 0,       // 3c (rank 1=3 in holdem)
-        2 * 4 + 0,       // 4c (rank 2=4)
-        6 * 4 + 0,       // 8c (rank 6=8)
-        11 * 4 + 0,      // Kc filler
-        10 * 4 + 0,      // Qc filler
+        ACE_S,      // ace
+        TWOS,       // 2c
+        1 * 4 + 0,  // 3c (rank 1=3 in holdem)
+        2 * 4 + 0,  // 4c (rank 2=4)
+        6 * 4 + 0,  // 8c (rank 6=8)
+        11 * 4 + 0, // Kc filler
+        10 * 4 + 0, // Qc filler
     ];
     let s = EightLowQualifiedRule.evaluate(&cards);
-    assert!(s.is_some(), "A-2-3-4-8 + fillers must qualify for 8-or-better");
+    assert!(
+        s.is_some(),
+        "A-2-3-4-8 + fillers must qualify for 8-or-better"
+    );
 }
 
 #[test]
@@ -75,17 +96,17 @@ fn ace_five_low_rule_returns_some_rank_for_any_input() {
 fn deuce_seven_rule_works_on_5_cards_via_facade() {
     // 7-5-4-3-2 mixed suits = the nuts in 2-7
     let cards = [
-        SEVEN_S,        // 7s
-        FIVE_S,         // 5s
-        2 * 4 + 2,      // 4h
-        1 * 4 + 1,      // 3d
-        0 * 4 + 0,      // 2c
+        SEVEN_S,   // 7s
+        FIVE_S,    // 5s
+        2 * 4 + 2, // 4h
+        1 * 4 + 1, // 3d
+        0 * 4 + 0, // 2c
     ];
     let nuts = DeuceSevenLowRule.evaluate(&cards);
 
     // Compare to a worse 8-high
     let worse = [
-        6 * 4 + 3,      // 8s
+        6 * 4 + 3, // 8s
         FIVE_S,
         2 * 4 + 2,
         1 * 4 + 1,
@@ -101,21 +122,25 @@ fn omaha_rule_uses_two_hole_three_board_via_facade() {
     // Without the 2-hole rule, this would be a royal flush. Omaha says
     // we have only 1 heart in hand — so no flush.
     let cards = [
-        ACE_S,         // hole As
-        11 * 4 + 2,    // hole Kh
-        TWOS,          // hole 2c -> hmm wait TWOS is 2c, suit 0. let me use 2c=0.
-        1 * 4 + 0,     // hole 3c
-        10 * 4 + 2,    // board Qh
-        9 * 4 + 2,     // board Jh
-        8 * 4 + 2,     // board Th
-        2 * 4 + 1,     // board 4d
-        3 * 4 + 1,     // board 5d
+        ACE_S,      // hole As
+        11 * 4 + 2, // hole Kh
+        TWOS,       // hole 2c -> hmm wait TWOS is 2c, suit 0. let me use 2c=0.
+        1 * 4 + 0,  // hole 3c
+        10 * 4 + 2, // board Qh
+        9 * 4 + 2,  // board Jh
+        8 * 4 + 2,  // board Th
+        2 * 4 + 1,  // board 4d
+        3 * 4 + 1,  // board 5d
     ];
     let s = OmahaHighRule.evaluate(&cards);
     // Best legal: As + Kh + Qh + Jh + Th = AKQJT. As is spade, Kh/Qh/Jh/Th hearts.
     // Suits mixed (As + 4 hearts) → straight, not flush. Should be Straight (cat 4).
     let cat = s >> 12;
-    assert_eq!(cat, 4, "expected Straight (cat 4) via 2-hole rule, got cat {}", cat);
+    assert_eq!(
+        cat, 4,
+        "expected Straight (cat 4) via 2-hole rule, got cat {}",
+        cat
+    );
 }
 
 #[test]
@@ -136,15 +161,7 @@ fn hi_lo_rule_returns_tuple_strength() {
 #[test]
 fn badugi_rule_via_facade_uses_holdem_encoding() {
     // Wheel A-2-3-4 of four different suits = 4-badugi nuts.
-    let cards = [
-        ACE_C,        // Ac
-        TWOS,         // 2c -> wait, TWOS is 2c (rank 0, suit 0). For wheel we want 4 different suits.
-        // Use Ac, 2d, 3h, 4s
-        0 * 4 + 1,    // 2d
-        1 * 4 + 2,    // 3h
-        2 * 4 + 3,    // 4s
-    ];
-    // The first slot above is misnamed. Build the right 4-card hand:
+    // (Encoding: card = rank * 4 + suit; rank 0 = 2, rank 12 = A.)
     let cards = [12 * 4 + 0, 0 * 4 + 1, 1 * 4 + 2, 2 * 4 + 3]; // Ac 2d 3h 4s
     let s = BadugiRule.evaluate(&cards);
     assert_eq!(s.count(), 4);
@@ -160,13 +177,13 @@ fn eight_low_translation_round_trip() {
     // Confirm the translation via outcome equivalence: facade
     // EightLowQualifiedRule against directly-built phe_eight_low::Hand.
     let cards: [u8; 7] = [
-        ACE_S,         // Ace (holdem rank 12 → eight-low rank 0)
-        TWOS,          // 2c (holdem rank 0 → eight-low rank 1)
-        1 * 4 + 0,     // 3c
-        2 * 4 + 0,     // 4c
-        6 * 4 + 0,     // 8c
-        11 * 4 + 0,    // Kc
-        10 * 4 + 0,    // Qc
+        ACE_S,      // Ace (holdem rank 12 → eight-low rank 0)
+        TWOS,       // 2c (holdem rank 0 → eight-low rank 1)
+        1 * 4 + 0,  // 3c
+        2 * 4 + 0,  // 4c
+        6 * 4 + 0,  // 8c
+        11 * 4 + 0, // Kc
+        10 * 4 + 0, // Qc
     ];
 
     let via_facade = EightLowQualifiedRule.evaluate(&cards);

@@ -76,12 +76,10 @@ pub fn noflush_plo4() -> &'static [u16; NOFLUSH_PLO4_LEN] {
 
 /// Convenience constants. Backwards-compatible names; both expand
 /// to slices of the static aligned blob, no per-call cost.
-pub static FLUSH_PLO4: &'static [u16; FLUSH_PLO4_LEN] = unsafe {
-    &*(ALIGNED_FLUSH_PLO4.bytes.as_ptr() as *const [u16; FLUSH_PLO4_LEN])
-};
-pub static NOFLUSH_PLO4: &'static [u16; NOFLUSH_PLO4_LEN] = unsafe {
-    &*(ALIGNED_NOFLUSH_PLO4.bytes.as_ptr() as *const [u16; NOFLUSH_PLO4_LEN])
-};
+pub static FLUSH_PLO4: &[u16; FLUSH_PLO4_LEN] =
+    unsafe { &*(ALIGNED_FLUSH_PLO4.bytes.as_ptr() as *const [u16; FLUSH_PLO4_LEN]) };
+pub static NOFLUSH_PLO4: &[u16; NOFLUSH_PLO4_LEN] =
+    unsafe { &*(ALIGNED_NOFLUSH_PLO4.bytes.as_ptr() as *const [u16; NOFLUSH_PLO4_LEN]) };
 
 // ------------------------------------------------------------------
 // Small 5-card eval tables — also exposed in case downstream
@@ -101,11 +99,9 @@ static ALIGNED_FLUSH_5: &Aligned<[u8; FLUSH_5_LEN * 2]> = &Aligned {
 };
 
 /// 5-card non-flush rank table, indexed by `hash_quinary(q, 5)`.
-pub static NO_FLUSH_5: &'static [u16; NO_FLUSH_5_LEN] = unsafe {
-    &*(ALIGNED_NO_FLUSH_5.bytes.as_ptr() as *const [u16; NO_FLUSH_5_LEN])
-};
+pub static NO_FLUSH_5: &[u16; NO_FLUSH_5_LEN] =
+    unsafe { &*(ALIGNED_NO_FLUSH_5.bytes.as_ptr() as *const [u16; NO_FLUSH_5_LEN]) };
 
 /// 5-card flush rank table, indexed by 13-bit rank pattern.
-pub static FLUSH_5: &'static [u16; FLUSH_5_LEN] = unsafe {
-    &*(ALIGNED_FLUSH_5.bytes.as_ptr() as *const [u16; FLUSH_5_LEN])
-};
+pub static FLUSH_5: &[u16; FLUSH_5_LEN] =
+    unsafe { &*(ALIGNED_FLUSH_5.bytes.as_ptr() as *const [u16; FLUSH_5_LEN]) };

@@ -35,8 +35,15 @@ const PF_AHEAD: usize = 8;
 /// no memory accesses to the big table.
 #[inline(always)]
 fn noflush_index_scalar(
-    c1: i32, c2: i32, c3: i32, c4: i32, c5: i32,
-    h1: i32, h2: i32, h3: i32, h4: i32,
+    c1: i32,
+    c2: i32,
+    c3: i32,
+    c4: i32,
+    c5: i32,
+    h1: i32,
+    h2: i32,
+    h3: i32,
+    h4: i32,
 ) -> usize {
     let mut quinary_board = [0u8; 13];
     let mut quinary_hole = [0u8; 13];
@@ -61,8 +68,15 @@ fn noflush_index_scalar(
 /// across the 2-pass batch loop.
 #[inline(always)]
 fn evaluate_with_noflush_idx(
-    c1: i32, c2: i32, c3: i32, c4: i32, c5: i32,
-    h1: i32, h2: i32, h3: i32, h4: i32,
+    c1: i32,
+    c2: i32,
+    c3: i32,
+    c4: i32,
+    c5: i32,
+    h1: i32,
+    h2: i32,
+    h3: i32,
+    h4: i32,
     noflush_idx: usize,
 ) -> i32 {
     let mut value_flush: i32 = 10000;
@@ -88,15 +102,24 @@ fn evaluate_with_noflush_idx(
             let mut suit_binary_board = [0i32; 4];
             let mut suit_binary_hole = [0i32; 4];
             unsafe {
-                *suit_binary_board.get_unchecked_mut((c1 & 0x3) as usize) |= *BIT_OF_DIV_4.get_unchecked(c1 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c2 & 0x3) as usize) |= *BIT_OF_DIV_4.get_unchecked(c2 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c3 & 0x3) as usize) |= *BIT_OF_DIV_4.get_unchecked(c3 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c4 & 0x3) as usize) |= *BIT_OF_DIV_4.get_unchecked(c4 as usize) as i32;
-                *suit_binary_board.get_unchecked_mut((c5 & 0x3) as usize) |= *BIT_OF_DIV_4.get_unchecked(c5 as usize) as i32;
-                *suit_binary_hole.get_unchecked_mut((h1 & 0x3) as usize) |= *BIT_OF_DIV_4.get_unchecked(h1 as usize) as i32;
-                *suit_binary_hole.get_unchecked_mut((h2 & 0x3) as usize) |= *BIT_OF_DIV_4.get_unchecked(h2 as usize) as i32;
-                *suit_binary_hole.get_unchecked_mut((h3 & 0x3) as usize) |= *BIT_OF_DIV_4.get_unchecked(h3 as usize) as i32;
-                *suit_binary_hole.get_unchecked_mut((h4 & 0x3) as usize) |= *BIT_OF_DIV_4.get_unchecked(h4 as usize) as i32;
+                *suit_binary_board.get_unchecked_mut((c1 & 0x3) as usize) |=
+                    *BIT_OF_DIV_4.get_unchecked(c1 as usize) as i32;
+                *suit_binary_board.get_unchecked_mut((c2 & 0x3) as usize) |=
+                    *BIT_OF_DIV_4.get_unchecked(c2 as usize) as i32;
+                *suit_binary_board.get_unchecked_mut((c3 & 0x3) as usize) |=
+                    *BIT_OF_DIV_4.get_unchecked(c3 as usize) as i32;
+                *suit_binary_board.get_unchecked_mut((c4 & 0x3) as usize) |=
+                    *BIT_OF_DIV_4.get_unchecked(c4 as usize) as i32;
+                *suit_binary_board.get_unchecked_mut((c5 & 0x3) as usize) |=
+                    *BIT_OF_DIV_4.get_unchecked(c5 as usize) as i32;
+                *suit_binary_hole.get_unchecked_mut((h1 & 0x3) as usize) |=
+                    *BIT_OF_DIV_4.get_unchecked(h1 as usize) as i32;
+                *suit_binary_hole.get_unchecked_mut((h2 & 0x3) as usize) |=
+                    *BIT_OF_DIV_4.get_unchecked(h2 as usize) as i32;
+                *suit_binary_hole.get_unchecked_mut((h3 & 0x3) as usize) |=
+                    *BIT_OF_DIV_4.get_unchecked(h3 as usize) as i32;
+                *suit_binary_hole.get_unchecked_mut((h4 & 0x3) as usize) |=
+                    *BIT_OF_DIV_4.get_unchecked(h4 as usize) as i32;
             }
             let sbb = unsafe { *suit_binary_board.get_unchecked(i) };
             let sbh = unsafe { *suit_binary_hole.get_unchecked(i) };
@@ -107,7 +130,9 @@ fn evaluate_with_noflush_idx(
                 let hole_padded = sbh | unsafe { *PADDING.get_unchecked((4 - sch) as usize) };
                 let board_hash = hash_binary(board_padded, 5);
                 let hole_hash = hash_binary(hole_padded, 4);
-                value_flush = unsafe { *FLUSH_PLO4.get_unchecked((board_hash * 1365 + hole_hash) as usize) } as i32;
+                value_flush =
+                    unsafe { *FLUSH_PLO4.get_unchecked((board_hash * 1365 + hole_hash) as usize) }
+                        as i32;
             }
             break;
         }
@@ -128,10 +153,7 @@ fn evaluate_with_noflush_idx(
 /// 2. Pass 2 — for each hand, prefetch `noflush[i + PF_AHEAD]` and
 ///    evaluate hand `i`. Memory latency on the large table is hidden
 ///    behind the in-flight prefetches.
-pub fn evaluate_plo4_batch(
-    hands: &[([u8; 4], [u8; 5])],
-    out: &mut [i32],
-) {
+pub fn evaluate_plo4_batch(hands: &[([u8; 4], [u8; 5])], out: &mut [i32]) {
     assert_eq!(hands.len(), out.len(), "hands / out length mismatch");
     let n = hands.len();
 
@@ -141,11 +163,17 @@ pub fn evaluate_plo4_batch(
     // a hand-written AVX2 8-wide gather (see BENCH_NOTES.md, "Negative
     // results").
     let mut indices: Vec<usize> = Vec::with_capacity(n);
-    for i in 0..n {
-        let (hole, board) = &hands[i];
+    for (hole, board) in hands {
         indices.push(noflush_index_scalar(
-            board[0] as i32, board[1] as i32, board[2] as i32, board[3] as i32, board[4] as i32,
-            hole[0] as i32, hole[1] as i32, hole[2] as i32, hole[3] as i32,
+            board[0] as i32,
+            board[1] as i32,
+            board[2] as i32,
+            board[3] as i32,
+            board[4] as i32,
+            hole[0] as i32,
+            hole[1] as i32,
+            hole[2] as i32,
+            hole[3] as i32,
         ));
     }
 
@@ -153,8 +181,8 @@ pub fn evaluate_plo4_batch(
     #[cfg(target_arch = "x86_64")]
     unsafe {
         let table = NOFLUSH_PLO4.as_ptr();
-        for i in 0..PF_AHEAD.min(n) {
-            _mm_prefetch::<_MM_HINT_T0>(table.add(indices[i]) as *const i8);
+        for &idx in indices.iter().take(PF_AHEAD.min(n)) {
+            _mm_prefetch::<_MM_HINT_T0>(table.add(idx) as *const i8);
         }
     }
 
@@ -164,15 +192,20 @@ pub fn evaluate_plo4_batch(
         unsafe {
             let j = i + PF_AHEAD;
             if j < n {
-                _mm_prefetch::<_MM_HINT_T0>(
-                    NOFLUSH_PLO4.as_ptr().add(indices[j]) as *const i8,
-                );
+                _mm_prefetch::<_MM_HINT_T0>(NOFLUSH_PLO4.as_ptr().add(indices[j]) as *const i8);
             }
         }
         let (hole, board) = &hands[i];
         out[i] = evaluate_with_noflush_idx(
-            board[0] as i32, board[1] as i32, board[2] as i32, board[3] as i32, board[4] as i32,
-            hole[0] as i32, hole[1] as i32, hole[2] as i32, hole[3] as i32,
+            board[0] as i32,
+            board[1] as i32,
+            board[2] as i32,
+            board[3] as i32,
+            board[4] as i32,
+            hole[0] as i32,
+            hole[1] as i32,
+            hole[2] as i32,
+            hole[3] as i32,
             indices[i],
         );
     }
@@ -188,14 +221,20 @@ mod tests {
         let mut out = Vec::with_capacity(n);
         for _ in 0..n {
             let mut deck = [0u8; 52];
-            for i in 0..52 { deck[i] = i as u8; }
+            for (i, slot) in deck.iter_mut().enumerate() {
+                *slot = i as u8;
+            }
             for i in 0..9 {
-                s ^= s << 13; s ^= s >> 7; s ^= s << 17;
+                s ^= s << 13;
+                s ^= s >> 7;
+                s ^= s << 17;
                 let p = i + (s as usize) % (52 - i);
                 deck.swap(i, p);
             }
-            out.push(([deck[0], deck[1], deck[2], deck[3]],
-                     [deck[4], deck[5], deck[6], deck[7], deck[8]]));
+            out.push((
+                [deck[0], deck[1], deck[2], deck[3]],
+                [deck[4], deck[5], deck[6], deck[7], deck[8]],
+            ));
         }
         out
     }
@@ -209,8 +248,15 @@ mod tests {
 
         for (i, (hole, board)) in hands.iter().enumerate() {
             single_out[i] = evaluate_plo4_cards(
-                board[0] as i32, board[1] as i32, board[2] as i32, board[3] as i32, board[4] as i32,
-                hole[0] as i32, hole[1] as i32, hole[2] as i32, hole[3] as i32,
+                board[0] as i32,
+                board[1] as i32,
+                board[2] as i32,
+                board[3] as i32,
+                board[4] as i32,
+                hole[0] as i32,
+                hole[1] as i32,
+                hole[2] as i32,
+                hole[3] as i32,
             );
         }
         evaluate_plo4_batch(&hands, &mut batch_out);
@@ -220,8 +266,10 @@ mod tests {
             if single_out[i] != batch_out[i] {
                 mismatches += 1;
                 if mismatches < 5 {
-                    eprintln!("mismatch at {i}: single={} batch={} hands={:?}",
-                        single_out[i], batch_out[i], hands[i]);
+                    eprintln!(
+                        "mismatch at {i}: single={} batch={} hands={:?}",
+                        single_out[i], batch_out[i], hands[i]
+                    );
                 }
             }
         }

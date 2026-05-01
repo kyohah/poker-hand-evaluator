@@ -26,7 +26,8 @@ pub fn hash_quinary(q: &[u8; 13], mut k: i32) -> u32 {
     unsafe {
         for i in 0..len {
             let qi = *q.get_unchecked(i);
-            sum += *DP.get_unchecked(qi as usize)
+            sum += *DP
+                .get_unchecked(qi as usize)
                 .get_unchecked(len - i - 1)
                 .get_unchecked(k as usize);
             k -= qi as i32;
@@ -52,7 +53,7 @@ pub fn hash_quinary_branchless(q: &[u8; 13], k_init: i32) -> u32 {
     unsafe {
         for i in 0..13 {
             let qi = *q.get_unchecked(i) as usize;
-            let kk = k.max(0).min(9) as usize;
+            let kk = k.clamp(0, 9) as usize;
             let raw = *DP.get_unchecked(qi).get_unchecked(12 - i).get_unchecked(kk);
             let mask: u32 = ((k > 0) as u32).wrapping_neg();
             sum = sum.wrapping_add(raw & mask);
@@ -66,14 +67,14 @@ pub fn hash_quinary_branchless(q: &[u8; 13], k_init: i32) -> u32 {
 #[inline(always)]
 pub fn hash_binary(binary: i32, mut k: i32) -> u32 {
     let mut sum: u32 = 0;
-    let len = 15;
+    let len: i32 = 15;
     // SAFETY: (len-i-1) ∈ [0,14], k ∈ [0,5] — within CHOOSE's
     // [53][10] bounds. The CHOOSE table is statically larger than
     // needed for these indices.
     unsafe {
         for i in 0..len {
             if binary & (1 << i) != 0 {
-                if (len - i - 1) as i32 >= k {
+                if (len - i - 1) >= k {
                     sum += *CHOOSE
                         .get_unchecked((len - i - 1) as usize)
                         .get_unchecked(k as usize);
