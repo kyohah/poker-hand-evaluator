@@ -124,12 +124,16 @@ proptest! {
         prop_assert!(rank < 6175);
     }
 
-    /// `DeuceSevenLowRule` operates on exactly 5 cards and returns
-    /// values within the holdem 16-bit rank space.
+    /// `DeuceSevenLowRule` is a multiset function — re-ordering the
+    /// cards must not change the rank.
     #[test]
-    fn deuce_seven_in_range(cards in distinct_cards(5)) {
-        let std::cmp::Reverse(rank) = DeuceSevenLowRule.evaluate(&cards);
-        prop_assert!(rank > 0); // 1-indexed
+    fn deuce_seven_is_order_invariant(
+        cards in distinct_cards(5),
+        seed in any::<u64>(),
+    ) {
+        let r1 = DeuceSevenLowRule.evaluate(&cards);
+        let r2 = DeuceSevenLowRule.evaluate(&shuffled(&cards, seed));
+        prop_assert_eq!(r1, r2);
     }
 
     /// `BadugiRule` always finds a non-empty subset; count is 1..=4.

@@ -21,6 +21,8 @@
 //!   correctness, but staying consistent across the workspace's
 //!   CUDA kernels avoids surprises.
 
+/// CUDA-C source for the PLO4 evaluator kernel. NVRTC-compiled at
+/// `PloEvalContext` initialisation; one thread evaluates one hand.
 pub const KERNEL_SRC: &str = r#"
 // PLO4 evaluator — port of HenryRLee/PokerHandEvaluator
 // `cpp/src/evaluator_plo4.c`. 1 thread = 1 hand.

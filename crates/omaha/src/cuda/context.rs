@@ -20,14 +20,31 @@ const BLOCK_DIM: u32 = 256;
 /// Errors produced by the CUDA backend.
 #[derive(Debug, thiserror::Error)]
 pub enum CudaEvalError {
+    /// Failure from the CUDA driver itself (context init, memcpy,
+    /// kernel launch, etc.). Wraps the `cudarc` `DriverError`.
     #[error("CUDA driver error: {0}")]
     Driver(#[from] DriverError),
+    /// Failure to compile `KERNEL_SRC` via NVRTC. Wraps `cudarc`'s
+    /// `CompileError`.
     #[error("NVRTC compile error: {0}")]
     Compile(#[from] CompileError),
+    /// `evaluate_batch_*` was called with mismatched `holes` and
+    /// `boards` slice lengths.
     #[error("input length mismatch: holes={holes} boards={boards} (expected equal)")]
-    LengthMismatch { holes: usize, boards: usize },
+    LengthMismatch {
+        /// Length of the supplied holes slice.
+        holes: usize,
+        /// Length of the supplied boards slice.
+        boards: usize,
+    },
+    /// Output buffer was too small to hold one rank per input hand.
     #[error("output buffer too small: got {got}, need {need}")]
-    OutputTooSmall { got: usize, need: usize },
+    OutputTooSmall {
+        /// Length of the supplied output buffer.
+        got: usize,
+        /// Required length (one entry per input hand).
+        need: usize,
+    },
 }
 
 /// GPU-resident PLO4 evaluator.
@@ -79,6 +96,10 @@ impl PloEvalContext {
         Self::with_device(0)
     }
 
+    /// Initialise on the CUDA device with the given ordinal,
+    /// constructing a fresh `CudaContext`. Use
+    /// [`PloEvalContext::from_context`] instead when integrating
+    /// into a host that already owns one.
     pub fn with_device(ordinal: usize) -> Result<Self, CudaEvalError> {
         Self::from_context(CudaContext::new(ordinal)?)
     }

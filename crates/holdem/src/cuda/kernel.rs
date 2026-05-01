@@ -16,6 +16,9 @@
 //! "higher = stronger" convention (LOOKUP / LOOKUP_FLUSH already
 //! store values that way).
 
+/// CUDA-C source for the Hold'em 5/6/7-card evaluator kernel.
+/// NVRTC-compiled at `HoldemEvalContext` initialisation; one thread
+/// evaluates one hand.
 pub const KERNEL_SRC: &str = r#"
 // phe-core / phe-holdem perfect-hash constants.
 #define SUIT_SHIFT      48
