@@ -92,3 +92,4 @@ phe-badugi = { version = "0.1.0", path = "crates/badugi", optional = true }
 
 [dev-dependencies]
 phe-eight-low = { version = "0.1.0", path = "crates/eight-low" }
+proptest = "1"
