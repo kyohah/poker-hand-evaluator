@@ -53,23 +53,25 @@ Machine: Intel Core i9-12900H (Alder Lake, 14C / 20T), Windows 11,
 | Omaha high | 4 + 5 | `evaluate_plo4_batch` (100K cold-cache, prefetch) | ~58 | ~17.2 |
 | Omaha high | 4 + 5 | naive 60-combo enum (reference) | ~146 | ~6.8 |
 
-GPU throughput at varying batch size (NVIDIA + LLVM Rust same host,
-`cuda` feature, 2026-05-01):
+Throughput at N = 1 M random hands (`cuda` feature for `phe-gpu`,
+2026-05-01). HenryRLee and Nerdmaster numbers are quoted from their
+own READMEs (different machines, single-call kernels — they don't
+publish batched numbers); `phe-cpu` and `phe-gpu` are our same-host
+criterion measurements at N = 1 M.
 
-| Crate | N | CPU batch | GPU host (PCIe round-trip) | GPU device-resident |
-|---|---:|---:|---:|---:|
-| `phe-holdem` | 1 K | ~5 ns/h | 63 ns/h | 18 ns/h |
-| `phe-holdem` | 100 K | 4.4 ns/h | 2.6 ns/h | **0.21 ns/h** |
-| `phe-holdem` | 1 M | 5.2 ns/h | 1.95 ns/h | **0.062 ns/h** (~84× CPU) |
-| `phe-omaha` | 1 K | 27 ns/h | 82 ns/h | 22 ns/h |
-| `phe-omaha` | 100 K | 69 ns/h | 6.2 ns/h | **0.71 ns/h** (~100× CPU) |
-| `phe-omaha` | 1 M | 43 ns/h | 7.2 ns/h | **0.51 ns/h** (~80× CPU) |
+| Variant       | HenryRLee | Nerdmaster |  phe-cpu | phe-gpu (device-resident) |
+|---------------|----------:|-----------:|---------:|--------------------------:|
+| Hold'em 7-card |  ~17.8 ns |    ~145 ns |  5.2 ns | **0.062 ns** (~84× phe-cpu) |
+| Omaha PLO4    |   ~30.5 ns |    ~416 ns |   43 ns | **0.51 ns** (~80× phe-cpu) |
 
-GPU host (with PCIe upload/download) crosses CPU around N = 3–10 K.
-GPU device-resident — i.e., the path a GPU-resident solver actually
-takes — wins everywhere above N ≈ 1 K. See each crate's
-`BENCH_NOTES.md` for the full reproduction recipe (Windows + NVRTC
-DLL path, criterion harness).
+`phe-gpu` is the device-resident path (data already on the GPU,
+zero PCIe per call) — i.e., the path a GPU-resident solver actually
+takes. The `evaluate_batch_on_stream` API also allows the kernel
+to be captured into the solver's existing CUDA graph. See each
+crate's `BENCH_NOTES.md` for the full reproduction recipe (Windows
++ NVRTC DLL path, criterion harness, and the small-N / mid-N
+breakdown — small batches lose to kernel-launch overhead, the GPU
+wins decisively past N ≈ 10 K).
 
 ### Reference numbers from other libraries
 
