@@ -2,11 +2,13 @@
 //!
 //! Phase 0a: bit-exact port. No Rust-side optimisations yet.
 
+pub mod batch;
 pub mod dp;
 pub mod flush_5card;
 pub mod hash;
 pub mod eval;
 
+pub use batch::evaluate_plo4_batch;
 pub use eval::evaluate_plo4_cards;
 
 /// Omaha 4-hole high rule.

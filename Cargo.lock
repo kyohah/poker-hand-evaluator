@@ -351,6 +351,7 @@ name = "phe-omaha-fast"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "phe-core",
  "phe-omaha",
  "phe-omaha-fast-assets",
 ]

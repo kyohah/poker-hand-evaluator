@@ -2,10 +2,10 @@
 //! 10 000 deterministic random hands per iteration.
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use phe_omaha_fast::evaluate_plo4_cards;
+use phe_omaha_fast::{evaluate_plo4_batch, evaluate_plo4_cards};
 
 const SEED: u64 = 0xDEAD_BEEF_CAFE_BABE;
-const NUM_FIXTURES: usize = 10_000;
+const NUM_FIXTURES: usize = 100_000;
 
 struct Rng(u64);
 impl Rng {
@@ -23,7 +23,7 @@ impl Rng {
     }
 }
 
-fn fixtures() -> Vec<([i32; 4], [i32; 5])> {
+fn fixtures_i32() -> Vec<([i32; 4], [i32; 5])> {
     let mut rng = Rng::new(SEED);
     let mut out = Vec::with_capacity(NUM_FIXTURES);
     for _ in 0..NUM_FIXTURES {
@@ -40,9 +40,19 @@ fn fixtures() -> Vec<([i32; 4], [i32; 5])> {
     out
 }
 
-fn bench_eval(c: &mut Criterion) {
-    let fixtures = fixtures();
-    c.bench_function("plo4_eval_10k_random", |b| {
+fn fixtures_u8() -> Vec<([u8; 4], [u8; 5])> {
+    fixtures_i32()
+        .iter()
+        .map(|(h, b)| {
+            ([h[0] as u8, h[1] as u8, h[2] as u8, h[3] as u8],
+             [b[0] as u8, b[1] as u8, b[2] as u8, b[3] as u8, b[4] as u8])
+        })
+        .collect()
+}
+
+fn bench_single(c: &mut Criterion) {
+    let fixtures = fixtures_i32();
+    c.bench_function("plo4_eval_100k_random_single", |b| {
         b.iter(|| {
             for (hole, board) in &fixtures {
                 let r = evaluate_plo4_cards(
@@ -57,5 +67,16 @@ fn bench_eval(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_eval);
+fn bench_batch(c: &mut Criterion) {
+    let fixtures = fixtures_u8();
+    let mut out = vec![0i32; fixtures.len()];
+    c.bench_function("plo4_eval_100k_random_batch", |b| {
+        b.iter(|| {
+            evaluate_plo4_batch(black_box(&fixtures), black_box(&mut out));
+            black_box(&out);
+        });
+    });
+}
+
+criterion_group!(benches, bench_single, bench_batch);
 criterion_main!(benches);
