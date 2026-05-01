@@ -29,6 +29,16 @@ repository = "https://github.com/kyohah/poker-hand-evaluator"
 [profile.release]
 lto = "thin"
 
+# Build scripts (notably `phe-omaha-fast-assets/build.rs`, which
+# enumerates ~700M sub-hand combinations to generate FLUSH_PLO4 /
+# NOFLUSH_PLO4) need optimization to run in seconds instead of
+# minutes. These overrides apply in both release and dev profiles.
+[profile.release.build-override]
+opt-level = 3
+
+[profile.dev.build-override]
+opt-level = 3
+
 [package]
 name = "poker-hand-evaluator"
 version.workspace = true
