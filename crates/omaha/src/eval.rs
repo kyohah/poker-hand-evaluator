@@ -153,6 +153,30 @@ pub fn evaluate_plo4_cards(
     value_flush.min(value_noflush)
 }
 
+/// Ergonomic wrapper for [`evaluate_plo4_cards`] that takes the cards
+/// as fixed-size arrays. Same Cactus-Kev rank in `[1, 7462]`
+/// (lower = stronger). Card encoding matches `phe_core::CARDS`.
+///
+/// # Safety
+///
+/// All 9 cards must be in `[0, 51]`; out-of-range inputs are
+/// undefined behaviour (matches the C reference). Duplicate cards
+/// across `board` and `hole` are silently accepted.
+#[inline]
+pub fn evaluate_plo4_cards_arr(board: [u8; 5], hole: [u8; 4]) -> i32 {
+    evaluate_plo4_cards(
+        board[0] as i32,
+        board[1] as i32,
+        board[2] as i32,
+        board[3] as i32,
+        board[4] as i32,
+        hole[0] as i32,
+        hole[1] as i32,
+        hole[2] as i32,
+        hole[3] as i32,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

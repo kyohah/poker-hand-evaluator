@@ -58,26 +58,18 @@ static ALIGNED_NOFLUSH_PLO4: &Aligned<[u8; NOFLUSH_PLO4_BYTES]> = &Aligned {
 /// rank-bitmap padded to 5 / 4 bits via the runtime PADDING constants).
 ///
 /// Cactus-Kev rank in `[1, 7462]`, lower = stronger.
-pub fn flush_plo4() -> &'static [u16; FLUSH_PLO4_LEN] {
-    // SAFETY: `Aligned<[u8; N]>` is 2-byte aligned via the `[u16; 0]`
-    // field; build.rs writes exactly `N * 2` bytes of little-endian
-    // u16, matching native byte order on every host we target.
-    unsafe { &*(ALIGNED_FLUSH_PLO4.bytes.as_ptr() as *const [u16; FLUSH_PLO4_LEN]) }
-}
+//
+// SAFETY: `Aligned<[u8; N]>` is 2-byte aligned via the `[u16; 0]`
+// field; build.rs writes exactly `N * 2` bytes of little-endian
+// u16, matching native byte order on every host we target.
+pub static FLUSH_PLO4: &[u16; FLUSH_PLO4_LEN] =
+    unsafe { &*(ALIGNED_FLUSH_PLO4.bytes.as_ptr() as *const [u16; FLUSH_PLO4_LEN]) };
 
 /// Best 5-card non-flush rank for a (board, hole) PLO multiset
 /// pattern, indexed by `board_hash * 1820 + hole_hash`
 /// (`hash_quinary` of the rank-count histogram).
 ///
 /// Cactus-Kev rank in `[1, 7462]`, lower = stronger.
-pub fn noflush_plo4() -> &'static [u16; NOFLUSH_PLO4_LEN] {
-    unsafe { &*(ALIGNED_NOFLUSH_PLO4.bytes.as_ptr() as *const [u16; NOFLUSH_PLO4_LEN]) }
-}
-
-/// Convenience constants. Backwards-compatible names; both expand
-/// to slices of the static aligned blob, no per-call cost.
-pub static FLUSH_PLO4: &[u16; FLUSH_PLO4_LEN] =
-    unsafe { &*(ALIGNED_FLUSH_PLO4.bytes.as_ptr() as *const [u16; FLUSH_PLO4_LEN]) };
 pub static NOFLUSH_PLO4: &[u16; NOFLUSH_PLO4_LEN] =
     unsafe { &*(ALIGNED_NOFLUSH_PLO4.bytes.as_ptr() as *const [u16; NOFLUSH_PLO4_LEN]) };
 
