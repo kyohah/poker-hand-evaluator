@@ -343,8 +343,10 @@ name = "phe-holdem"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "cudarc",
  "phe-core",
  "phe-holdem-assets",
+ "thiserror",
 ]
 
 [[package]]

@@ -24,6 +24,13 @@ The facade crate (workspace root, `poker-hand-evaluator`) re-exports
 the variant rules behind `#[cfg(feature = ...)]` gates and exposes the
 shared `HandRule` trait. Default features are `["all"]`.
 
+`phe-holdem` and `phe-omaha-fast` both ship an optional `cuda`
+feature that adds an NVRTC-compiled GPU evaluator
+(`HoldemEvalContext` / `PloEvalContext`). They share the same API
+shape: `from_context(Arc<CudaContext>)` for solver-shared init and
+`evaluate_batch_on_stream(&CudaStream, ...)` for graph-capturable
+launch. New variant CUDA backends should follow this pattern.
+
 ## Two omaha crates
 
 `phe-omaha` and `phe-omaha-fast` are intentional siblings — they are

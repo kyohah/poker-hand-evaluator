@@ -11,6 +11,9 @@ mod eval;
 mod heads_up;
 mod parse;
 
+#[cfg(feature = "cuda")]
+pub mod cuda;
+
 pub use category::{get_hand_category, HandCategory};
 pub use enumerate::enumerate_hand_category;
 pub use eval::HighRule;
