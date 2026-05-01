@@ -109,19 +109,6 @@ languages, and harnesses, so the cross-library numbers are
 ballpark only — but the same-host LLVM C-vs-Rust parity finding
 above is the rigorous one.
 
-Memory-footprint side-by-side (numbers from each project's own
-README; for `phe-*` these are runtime u16/i32 array sizes):
-
-| Variant | `HenryRLee/PokerHandEvaluator` table | `phe-*` table |
-|---|---|---|
-| 5-card lookup | 60 KB | 163 KB (covers 5/6/7 in one table) |
-| 7-card lookup | 144 KB | 163 KB (same as 5-card) |
-| Omaha (PLO4) lookup | 30.5 MB | 22 MB |
-
-Also note that `HenryRLee/PokerHandEvaluator` ships PLO5 (5-hole) and
-PLO6 (6-hole) Omaha variants which need 110 MB and 345 MB lookup
-tables respectively — `phe-omaha` only handles standard 4-hole Omaha.
-
 ### Memory footprint (lookup tables)
 
 Most variants share the structure introduced by
