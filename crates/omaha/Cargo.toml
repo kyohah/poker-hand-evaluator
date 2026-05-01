@@ -5,16 +5,32 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Omaha high evaluator (4 hole + 5 board, best-of-60) on top of phe-holdem"
+description = "Omaha 4-hole high evaluator — direct port of HenryRLee/PokerHandEvaluator PLO4 perfect-hash"
 
 [dependencies]
-phe-core = { path = "../core" }
-phe-holdem = { path = "../holdem" }
 phe-omaha-assets = { path = "../omaha-assets" }
+cudarc = { version = "0.19", default-features = false, features = ["std", "driver", "nvrtc", "cuda-13020", "dynamic-loading"], optional = true }
+thiserror = { version = "2", optional = true }
+
+[features]
+default = []
+# CUDA backend: GPU-resident PLO4 evaluator (1 thread = 1 hand).
+# Adds optional `cudarc` dep with dynamic-loading; no CUDA toolkit
+# required at build time, only the NVIDIA driver at runtime.
+cuda = ["dep:cudarc", "dep:thiserror"]
 
 [dev-dependencies]
+phe-core = { path = "../core" }
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]
 name = "eval"
 harness = false
+
+[[bench]]
+name = "eval_cuda"
+harness = false
+required-features = ["cuda"]
+
+[[example]]
+name = "check_bases"

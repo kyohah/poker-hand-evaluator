@@ -2,7 +2,7 @@
 //!
 //! Run with:
 //! ```text
-//! cargo bench -p phe-omaha-fast --bench eval_cuda --features cuda
+//! cargo bench -p phe-omaha --bench eval_cuda --features cuda
 //! ```
 //! NVRTC must be on PATH (Windows: add CUDA toolkit's `bin/x64`).
 //!
@@ -15,8 +15,8 @@
 //!   number a GPU-resident solver would actually see.
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use phe_omaha_fast::cuda::PloEvalContext;
-use phe_omaha_fast::evaluate_plo4_batch;
+use phe_omaha::cuda::PloEvalContext;
+use phe_omaha::evaluate_plo4_batch;
 
 const SEED: u64 = 0xDEAD_BEEF_CAFE_BABE;
 const SIZES: &[usize] = &[1_000, 10_000, 100_000, 1_000_000];

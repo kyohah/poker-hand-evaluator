@@ -51,7 +51,7 @@ pub enum CudaEvalError {
 /// caller's existing `Arc<CudaContext>`, and launch with
 /// [`HoldemEvalContext::evaluate_batch_on_stream`] passing the
 /// solver's per-pass stream — same pattern as
-/// `phe-omaha-fast::cuda::PloEvalContext`.
+/// `phe-omaha::cuda::PloEvalContext`.
 ///
 /// Output is u16 with the workspace's "higher = stronger"
 /// convention (matches `HandRule::evaluate`), so no Cactus-Kev

@@ -10,7 +10,7 @@ use cudarc::nvrtc::{compile_ptx_with_opts, CompileError, CompileOptions};
 
 use crate::dp::{BIT_OF_DIV_4, CHOOSE, DP};
 use crate::flush_5card::FLUSH;
-use phe_omaha_fast_assets::{FLUSH_PLO4, NOFLUSH_PLO4};
+use phe_omaha_assets::{FLUSH_PLO4, NOFLUSH_PLO4};
 
 use super::kernel::KERNEL_SRC;
 

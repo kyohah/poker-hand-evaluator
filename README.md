@@ -12,17 +12,12 @@ hot path.
 | `phe-holdem`         | Hold'em high (5–7 cards)                               |
 | `phe-eight-low`      | 8-or-better low + A-5 lowball (Razz)                   |
 | `phe-deuce-seven`    | 2-7 lowball                                            |
-| `phe-omaha`          | Omaha high (4 hole + 5 board) — three-path dispatch over `phe-holdem` |
-| `phe-omaha-fast`     | Omaha high — direct port of HenryRLee's PLO4 perfect-hash (multiset-hash + best-of-60 precomputed) |
+| `phe-omaha`          | Omaha high (4 hole + 5 board) — port of HenryRLee's PLO4 perfect-hash (multiset-hash + best-of-60 precomputed), with optional CUDA backend |
 | `phe-badugi`         | 4-card Badugi                                          |
-
-`phe-omaha` and `phe-omaha-fast` are intentional siblings — pick by
-caller need. See `crates/omaha-fast/BENCH_NOTES.md` for the full
-side-by-side methodology.
 
 ### Optional CUDA backend (`cuda` feature)
 
-`phe-holdem` and `phe-omaha-fast` both ship an NVRTC-compiled GPU
+`phe-holdem` and `phe-omaha` both ship an NVRTC-compiled GPU
 evaluator behind the `cuda` feature. 1 thread = 1 hand kernel,
 caller-shareable `Arc<CudaContext>` and caller-supplied `CudaStream`
 so it composes into a larger CUDA app's existing graphs. Output
@@ -54,10 +49,9 @@ Machine: Intel Core i9-12900H (Alder Lake, 14C / 20T), Windows 11,
 | A-5 lowball (Razz) | 5 | `AceFiveLowRule::evaluate` | ~1.0 | ~1020 |
 | A-5 lowball (Razz) | 7 | `AceFiveLowRule::evaluate` | ~1.2 | ~806 |
 | 2-7 lowball | 5 | `DeuceSevenLowRule::evaluate` | ~2.9 | ~344 |
-| Omaha high (`phe-omaha`) | 4 + 5 | `OmahaHighRule::evaluate` (single-call) | ~62 | ~16.1 |
-| Omaha high (`phe-omaha`) | 4 + 5 | `OmahaHighRule::evaluate_batch` (path-1 prefetch) | ~54 | ~18.5 |
-| Omaha high (`phe-omaha-fast`) | 4 + 5 | `evaluate_plo4_batch` (cold-cache 100K) | ~58 | ~17.2 |
-| Omaha high (`phe-omaha-fast`) | 4 + 5 | naive 60-combo enum (reference) | ~146 | ~6.8 |
+| Omaha high | 4 + 5 | `OmahaHighRule::evaluate` (single-call, 100K cold-cache) | ~144 | ~6.9 |
+| Omaha high | 4 + 5 | `evaluate_plo4_batch` (100K cold-cache, prefetch) | ~58 | ~17.2 |
+| Omaha high | 4 + 5 | naive 60-combo enum (reference) | ~146 | ~6.8 |
 
 GPU throughput at varying batch size (NVIDIA + LLVM Rust same host,
 `cuda` feature, 2026-05-01):
@@ -67,9 +61,9 @@ GPU throughput at varying batch size (NVIDIA + LLVM Rust same host,
 | `phe-holdem` | 1 K | ~5 ns/h | 63 ns/h | 18 ns/h |
 | `phe-holdem` | 100 K | 4.4 ns/h | 2.6 ns/h | **0.21 ns/h** |
 | `phe-holdem` | 1 M | 5.2 ns/h | 1.95 ns/h | **0.062 ns/h** (~84× CPU) |
-| `phe-omaha-fast` | 1 K | 27 ns/h | 82 ns/h | 22 ns/h |
-| `phe-omaha-fast` | 100 K | 69 ns/h | 6.2 ns/h | **0.71 ns/h** (~100× CPU) |
-| `phe-omaha-fast` | 1 M | 43 ns/h | 7.2 ns/h | **0.51 ns/h** (~80× CPU) |
+| `phe-omaha` | 1 K | 27 ns/h | 82 ns/h | 22 ns/h |
+| `phe-omaha` | 100 K | 69 ns/h | 6.2 ns/h | **0.71 ns/h** (~100× CPU) |
+| `phe-omaha` | 1 M | 43 ns/h | 7.2 ns/h | **0.51 ns/h** (~80× CPU) |
 
 GPU host (with PCIe upload/download) crosses CPU around N = 3–10 K.
 GPU device-resident — i.e., the path a GPU-resident solver actually
@@ -84,7 +78,7 @@ is the closest comparison. To make it apples-to-apples we re-built
 the C reference on **the same host** (`clang-cl /O2 -flto
 -fuse-ld=lld`) with the same fixture set as our criterion bench,
 rather than quoting their published numbers from a different
-machine. See `crates/omaha-fast/BENCH_NOTES.md` for the
+machine. See `crates/omaha/BENCH_NOTES.md` for the
 reproducibility recipe.
 
 10 000 random PLO4 hands, deterministic xorshift64 seed
@@ -92,7 +86,7 @@ reproducibility recipe.
 
 | build                                  | speed (ns / eval) |
 |----------------------------------------|-------------------|
-| Rust `phe-omaha-fast` (LLVM)           | ~35 ns (best 34.9) |
+| Rust `phe-omaha` (LLVM)           | ~35 ns (best 34.9) |
 | C clang-cl `/O2 -flto -fuse-ld=lld`    | ~35 ns (best 34.7) |
 | C MSVC `cl /O2 /GL /LTCG`              | ~46 ns            |
 | C MSVC `cl /O2` (no LTO)               | ~52 – 62 ns       |
@@ -142,39 +136,38 @@ source-file size:
 | `phe-holdem-assets` | `LOOKUP [u16; 73775]` + `LOOKUP_FLUSH [u16; 8129]` | ~163 KB | textual |
 | `phe-eight-low-assets` | `OFFSETS [i32; 12500]` + `LOOKUP [u16; 74285]` | ~199 KB | textual |
 | `phe-deuce-seven-assets` | `LOOKUP [u16; 73770]` + `LOOKUP_FLUSH [u16; 7937]` | ~163 KB | textual |
-| `phe-omaha-assets` | `noflush_lookup` (path-1 9-card direct) | **22 MB** | **build.rs**, no committed blob |
-| `phe-omaha-fast-assets` | `FLUSH_PLO4` (~8 MB) + `NOFLUSH_PLO4` (~22.5 MB) | **~30 MB** | **build.rs** + 28 KB primitive seed bins |
-| `phe-omaha::lookup_5card` | `OFFSETS_5C` + `LOOKUP_5C` (5-card-only L1d-fitting) | ~33 KB | textual |
+| `phe-omaha-assets` | `FLUSH_PLO4` (~8 MB) + `NOFLUSH_PLO4` (~22.5 MB) | **~30 MB** | **build.rs** + 28 KB primitive seed bins |
 
-The 22 MB `phe-omaha-assets` table and the 30 MB `phe-omaha-fast-assets`
-table pair are **generated at build time** by each crate's `build.rs`
-from algorithmic primitives (Hold'em rank-only LOOKUP and a 28 KB pair
-of 5-card Cactus-Kev seed tables, respectively). Keeping the
-algorithm in `build.rs` means a single source of truth, and the repo
-ships zero pre-baked > 1 MB blobs. Workspace-level
-`[profile.*.build-override] opt-level = 3` keeps the generation cost
-to ~2 s (`omaha-assets`) + ~20 s (`omaha-fast-assets`) on a fresh
-clean build.
+The ~30 MB `phe-omaha-assets` table pair is **generated at build
+time** by `build.rs` from algorithmic primitives (a 28 KB pair of
+5-card Cactus-Kev seed tables, ported from HenryRLee's Python
+distribution). Keeping the algorithm in `build.rs` means a single
+source of truth, and the repo ships zero pre-baked > 1 MB blobs.
+Workspace-level `[profile.*.build-override] opt-level = 3` keeps
+the generation cost to ~20 s on a fresh clean build.
 
 ### How (Omaha)
 
-`OmahaHighRule::evaluate` dispatches to one of three "9-card direct"
-paths from the suit counts and the board's pair structure:
+`OmahaHighRule::evaluate` is a direct port of HenryRLee's PLO4
+perfect-hash. For each (4 hole, 5 board) layout:
 
-1. **No-flush path** (no suit has both ≥2 hole and ≥3 board cards):
-   answer is a single read from a 22 MB rank-multiset table keyed by
-   the multiset combinatorial number system over the 4 hole + 5 board
-   ranks. No 60-combo enumeration.
-2. **Flush-dominates path** (flush reachable AND board has 5 distinct
-   ranks): a 10-window straight-flush bitmask scan + top-2 hole /
-   top-3 board bit-OR resolves the answer with **one** `LOOKUP_FLUSH`
-   access.
-3. **Flush + paired board path**: SF / Quads / Full House / Flush are
-   each computed independently from per-rank-count bitmasks; the max
-   wins. Lower categories are dominated by the guaranteed flush.
+1. Compute per-suit counts. If any suit has ≥3 board and ≥2 hole
+   cards, a flush sub-hand is reachable: hash the per-suit rank
+   bitmaps via `hash_binary` and look up the precomputed best-of-60
+   flush rank in `FLUSH_PLO4`.
+2. Compute per-rank counts (quinary histogram). Hash the histogram
+   via `hash_quinary` and look up the precomputed best-of-60
+   non-flush rank in `NOFLUSH_PLO4`.
+3. Take the min Cactus-Kev rank across the two paths (lower =
+   stronger). The facade flips this to `7463 - rank` for the
+   workspace's "higher = stronger" `u16` strength convention.
 
-`evaluate_batch` adds an `_mm_prefetch` hint four iterations ahead of
-each path-1 lookup, hiding the 22 MB table's memory latency on x86_64.
+The 60-combo enumeration is **precomputed at build time**, so the
+runtime call is dominated by ~one DRAM round-trip on
+`NOFLUSH_PLO4` (the 22.5 MB table exceeds typical L3). The
+`evaluate_plo4_batch` API hides that latency with
+`_mm_prefetch` 8 hands ahead of each lookup, dropping cold-cache
+batch throughput from ~144 ns/hand to ~58 ns/hand on x86_64.
 
 Reproduce locally:
 
@@ -198,8 +191,8 @@ crates/
   deuce-seven-assets/
   omaha/                Omaha high evaluator on top of phe-holdem
   omaha-assets/         path-1 no-flush direct lookup table (22 MB, generated by build.rs)
-  omaha-fast/           Omaha high — direct port of HenryRLee's PLO4 perfect-hash (+ optional `cuda` feature)
-  omaha-fast-assets/    FLUSH_PLO4 + NOFLUSH_PLO4 (~30 MB, generated by build.rs)
+  omaha/           Omaha high — direct port of HenryRLee's PLO4 perfect-hash (+ optional `cuda` feature)
+  omaha-assets/    FLUSH_PLO4 + NOFLUSH_PLO4 (~30 MB, generated by build.rs)
   badugi/               4-card Badugi
 scripts/                asset generators retained for one-shot debugging (production assets are built by each crate's own build.rs)
 src/lib.rs              facade crate (`HandRule` + feature-gated re-exports)

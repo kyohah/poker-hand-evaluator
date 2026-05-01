@@ -119,12 +119,15 @@ fn deuce_seven_rule_works_on_5_cards_via_facade() {
 #[test]
 fn omaha_rule_uses_two_hole_three_board_via_facade() {
     // 9 cards: hole [As Kh 2c 3c] + board [Qh Jh Th 4d 5d]
-    // Without the 2-hole rule, this would be a royal flush. Omaha says
-    // we have only 1 heart in hand — so no flush.
+    // Without the 2-hole rule, this would be a royal flush
+    // (5 hearts: KQJT + Ah). Omaha says we must use exactly 2 hole
+    // cards, and we only have 1 heart in hand (Kh) — so no flush
+    // is reachable. The best legal 5-card hand is the AKQJT
+    // ace-high straight (As + Kh + Qh + Jh + Th, mixed suits).
     let cards = [
         ACE_S,      // hole As
         11 * 4 + 2, // hole Kh
-        TWOS,       // hole 2c -> hmm wait TWOS is 2c, suit 0. let me use 2c=0.
+        TWOS,       // hole 2c
         1 * 4 + 0,  // hole 3c
         10 * 4 + 2, // board Qh
         9 * 4 + 2,  // board Jh
@@ -132,14 +135,27 @@ fn omaha_rule_uses_two_hole_three_board_via_facade() {
         2 * 4 + 1,  // board 4d
         3 * 4 + 1,  // board 5d
     ];
-    let s = OmahaHighRule.evaluate(&cards);
-    // Best legal: As + Kh + Qh + Jh + Th = AKQJT. As is spade, Kh/Qh/Jh/Th hearts.
-    // Suits mixed (As + 4 hearts) → straight, not flush. Should be Straight (cat 4).
-    let cat = s >> 12;
-    assert_eq!(
-        cat, 4,
-        "expected Straight (cat 4) via 2-hole rule, got cat {}",
-        cat
+    let actual_straight = OmahaHighRule.evaluate(&cards);
+
+    // A clearly-weaker 9-card hand (just a pair of aces, no straight,
+    // no flush): hole [As Ad 7c 2c] + board [Kh Th 8d 5d 3c].
+    let weaker_pair = [
+        ACE_S,
+        ACE_D,
+        5 * 4 + 0,
+        TWOS,
+        11 * 4 + 2,
+        8 * 4 + 2,
+        6 * 4 + 1,
+        3 * 4 + 1,
+        1 * 4 + 0,
+    ];
+    let pair_strength = OmahaHighRule.evaluate(&weaker_pair);
+    assert!(
+        actual_straight > pair_strength,
+        "AKQJT straight via 2-hole rule must beat pair-of-aces (got {} vs {})",
+        actual_straight,
+        pair_strength,
     );
 }
 

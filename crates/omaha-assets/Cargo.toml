@@ -5,15 +5,6 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Omaha high lookup tables (path-1 no-flush direct table)"
+description = "PLO4 perfect-hash lookup tables (flush_plo4 + noflush_plo4)"
 
 [dependencies]
-
-# `build.rs` generates `noflush_lookup.bin` from the existing 5-7
-# card Hold'em rank-only perfect-hash. Pulling in `phe-core` and
-# `phe-holdem-assets` at build time only (not as transitive runtime
-# deps) keeps a single algorithmic source of truth — change the
-# Hold'em LOOKUP table and the Omaha path-1 table regenerates.
-[build-dependencies]
-phe-core = { path = "../core" }
-phe-holdem-assets = { path = "../holdem-assets" }

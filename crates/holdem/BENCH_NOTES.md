@@ -17,7 +17,7 @@ bit in `key` selects between `LOOKUP_FLUSH` and the
 
 That fits comfortably in modern L2 (typically 256 KB–1 MB), so
 random-hand throughput stays in the L2 regime even at 100K+
-fixtures — quite different from `phe-omaha-fast`'s 22 MB
+fixtures — quite different from `phe-omaha`'s 22 MB
 `NOFLUSH_PLO4` which exceeds L3.
 
 ## CUDA backend (`cuda` feature, 2026-05-01)
@@ -28,7 +28,7 @@ memory once on `HoldemEvalContext::new()`; with a working set of
 ~212 KB they stay L2-resident on the GPU through normal access
 patterns (T4: 4 MB L2; A100: 40 MB L2; RTX 3060: 3 MB L2).
 
-API surface mirrors `phe-omaha-fast::cuda` intentionally:
+API surface mirrors `phe-omaha::cuda` intentionally:
 
 * `evaluate_batch(cards, cards_per_hand)` — host slice in, host
   Vec out, includes upload + download every call.
@@ -61,7 +61,7 @@ the CPU. GPU host (with PCIe) crosses CPU around N = 5-10 K.
 ### Solver integration recipe
 
 `poker-cuda-solver` is the primary GPU-resident caller. Same
-pattern as `phe-omaha-fast::cuda`:
+pattern as `phe-omaha::cuda`:
 
 ```rust
 let ctx: Arc<CudaContext> = solver_context();

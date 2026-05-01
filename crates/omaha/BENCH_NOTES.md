@@ -1,4 +1,4 @@
-# `phe-omaha-fast` performance notes
+# `phe-omaha` performance notes
 
 Direct comparison against the upstream HenryRLee/PokerHandEvaluator C
 reference, run on the **same Windows host** (no cross-host noise).
@@ -10,7 +10,7 @@ reference, run on the **same Windows host** (no cross-host noise).
 
 | build                                  | speed (ns / eval) |
 |----------------------------------------|-------------------|
-| **Rust `phe-omaha-fast` (LLVM)**       | **~35 ns** (best 34.9) |
+| **Rust `phe-omaha` (LLVM)**       | **~35 ns** (best 34.9) |
 | **C clang-cl `/O2 -flto -fuse-ld=lld`**| **~35 ns** (best 34.7) |
 | C MSVC `cl /O2 /GL /LTCG`              | ~46 ns            |
 | C MSVC `cl /O2` (no LTO)               | ~52 – 62 ns       |
@@ -36,7 +36,7 @@ call. `/GL /LTCG` enables whole-program optimisation, which recovers
 
 ```sh
 cd ~/ghq/github.com/kyohah/poker-hand-evaluator
-cargo bench -p phe-omaha-fast --bench eval -- --quick
+cargo bench -p phe-omaha --bench eval -- --quick
 ```
 
 ### C (clang-cl + LTO)
@@ -128,7 +128,7 @@ int main(void) {
 
 ## Implication
 
-`phe-omaha-fast` is at parity with `clang-cl`-built C on this host.
+`phe-omaha` is at parity with `clang-cl`-built C on this host.
 The "13× slower than HenryRLee" worry that motivated this port was
 eliminated entirely once we measured on the same host with the same
 LLVM backend — both implementations land at ~35 ns / eval, and the
@@ -137,7 +137,7 @@ and L3 hit-rate on a different machine), not algorithmic or
 language-level.
 
 The next meaningful improvement is a cache-friendlier table layout
-(phase 2 in the omaha-fast roadmap), not micro-optimisation of the
+(phase 2 in the omaha roadmap), not micro-optimisation of the
 existing kernel — both LLVM C and LLVM Rust have already squeezed
 this algorithm dry.
 
@@ -229,14 +229,14 @@ T4 want 2 blocks/SM with `block_dim = 512`). No occupancy conflict.
 NVRTC must be on `PATH`. On Windows with CUDA Toolkit 13.2:
 ```sh
 PATH="/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64:$PATH" \
-  cargo bench -p phe-omaha-fast --bench eval_cuda --features cuda
+  cargo bench -p phe-omaha --bench eval_cuda --features cuda
 ```
 
 Parity (GPU output bit-exact == CPU `evaluate_plo4_cards`) is
 guarded by `tests/cuda_parity.rs`:
 ```sh
 PATH="/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64:$PATH" \
-  cargo test -p phe-omaha-fast --release --features cuda -- --ignored
+  cargo test -p phe-omaha --release --features cuda -- --ignored
 ```
 
 ## Negative results recorded here so we don't retry them

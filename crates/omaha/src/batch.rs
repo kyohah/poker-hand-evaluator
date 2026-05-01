@@ -23,7 +23,7 @@
 use crate::dp::BIT_OF_DIV_4;
 use crate::flush_5card::FLUSH;
 use crate::hash::{hash_binary, hash_quinary};
-use phe_omaha_fast_assets::{FLUSH_PLO4, NOFLUSH_PLO4};
+use phe_omaha_assets::{FLUSH_PLO4, NOFLUSH_PLO4};
 
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};

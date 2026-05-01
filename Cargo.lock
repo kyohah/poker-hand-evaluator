@@ -358,33 +358,14 @@ name = "phe-omaha"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "phe-core",
- "phe-holdem",
- "phe-omaha-assets",
-]
-
-[[package]]
-name = "phe-omaha-assets"
-version = "0.1.0"
-dependencies = [
- "phe-core",
- "phe-holdem-assets",
-]
-
-[[package]]
-name = "phe-omaha-fast"
-version = "0.1.0"
-dependencies = [
- "criterion",
  "cudarc",
  "phe-core",
- "phe-omaha",
- "phe-omaha-fast-assets",
+ "phe-omaha-assets",
  "thiserror",
 ]
 
 [[package]]
-name = "phe-omaha-fast-assets"
+name = "phe-omaha-assets"
 version = "0.1.0"
 
 [[package]]

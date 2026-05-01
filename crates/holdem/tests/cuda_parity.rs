@@ -104,7 +104,7 @@ fn cuda_uneven_grid_sizes() {
 #[test]
 #[ignore = "requires CUDA-capable GPU at runtime"]
 fn cuda_solver_integration_path() {
-    // Mirrors phe-omaha-fast's solver-integration test:
+    // Mirrors phe-omaha's solver-integration test:
     // shared CudaContext + caller stream + caller buffers.
     use cudarc::driver::CudaContext;
 

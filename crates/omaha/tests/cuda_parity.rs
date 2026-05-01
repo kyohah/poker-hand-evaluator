@@ -2,7 +2,7 @@
 //!
 //! Run with:
 //! ```text
-//! cargo test -p phe-omaha-fast --release --features cuda -- --ignored
+//! cargo test -p phe-omaha --release --features cuda -- --ignored
 //! ```
 //!
 //! The `#[ignore]` is so unit-test runs without a GPU (e.g., CI's CPU
@@ -11,8 +11,8 @@
 
 #![cfg(feature = "cuda")]
 
-use phe_omaha_fast::cuda::PloEvalContext;
-use phe_omaha_fast::evaluate_plo4_cards;
+use phe_omaha::cuda::PloEvalContext;
+use phe_omaha::evaluate_plo4_cards;
 
 fn deal_hands(seed: u64, n: usize) -> Vec<([u8; 4], [u8; 5])> {
     let mut s = seed;

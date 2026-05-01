@@ -10,8 +10,6 @@ members = [
     "crates/deuce-seven-assets",
     "crates/omaha",
     "crates/omaha-assets",
-    "crates/omaha-fast",
-    "crates/omaha-fast-assets",
     "crates/badugi",
     "scripts",
 ]
@@ -29,7 +27,7 @@ repository = "https://github.com/kyohah/poker-hand-evaluator"
 [profile.release]
 lto = "thin"
 
-# Build scripts (notably `phe-omaha-fast-assets/build.rs`, which
+# Build scripts (notably `phe-omaha-assets/build.rs`, which
 # enumerates ~700M sub-hand combinations to generate FLUSH_PLO4 /
 # NOFLUSH_PLO4) need optimization to run in seconds instead of
 # minutes. These overrides apply in both release and dev profiles.
@@ -59,7 +57,7 @@ default = ["all"]
 holdem = ["dep:phe-holdem"]
 eight-low = ["dep:phe-eight-low"]
 deuce-seven = ["dep:phe-deuce-seven"]
-omaha = ["dep:phe-omaha", "dep:phe-holdem"]
+omaha = ["dep:phe-omaha"]
 badugi = ["dep:phe-badugi"]
 all = ["holdem", "eight-low", "deuce-seven", "omaha", "badugi"]
 

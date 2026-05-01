@@ -6,7 +6,7 @@
 //! resident on every CUDA-capable GPU) and exposes a
 //! 1-thread-per-hand kernel for batch evaluation.
 //!
-//! Mirrors the `phe-omaha-fast::cuda` API surface intentionally:
+//! Mirrors the `phe-omaha::cuda` API surface intentionally:
 //!
 //! * [`HoldemEvalContext::new`] / [`HoldemEvalContext::from_context`]
 //!   for stand-alone vs solver-integrated initialisation.
