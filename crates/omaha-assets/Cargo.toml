@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+rust-version.workspace = true
 description = "PLO4 perfect-hash lookup tables (flush_plo4 + noflush_plo4)"
 
 [dependencies]

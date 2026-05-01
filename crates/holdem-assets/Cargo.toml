@@ -5,6 +5,10 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+rust-version.workspace = true
 description = "Hold'em high lookup tables (LOOKUP, LOOKUP_FLUSH) and heads-up win frequency table"
 
 [dependencies]

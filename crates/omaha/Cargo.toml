@@ -5,10 +5,14 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+rust-version.workspace = true
 description = "Omaha 4-hole high evaluator — direct port of HenryRLee/PokerHandEvaluator PLO4 perfect-hash"
 
 [dependencies]
-phe-omaha-assets = { path = "../omaha-assets" }
+phe-omaha-assets = { version = "0.1.0", path = "../omaha-assets" }
 cudarc = { version = "0.19", default-features = false, features = ["std", "driver", "nvrtc", "cuda-13020", "dynamic-loading"], optional = true }
 thiserror = { version = "2", optional = true }
 
@@ -20,7 +24,7 @@ default = []
 cuda = ["dep:cudarc", "dep:thiserror"]
 
 [dev-dependencies]
-phe-core = { path = "../core" }
+phe-core = { version = "0.1.0", path = "../core" }
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]

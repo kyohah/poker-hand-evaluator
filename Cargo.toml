@@ -20,6 +20,10 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["kyohah <kyohah@gmail.com>"]
 repository = "https://github.com/kyohah/poker-hand-evaluator"
+homepage = "https://github.com/kyohah/poker-hand-evaluator"
+categories = ["games", "algorithms"]
+keywords = ["poker", "hand-evaluator", "holdem", "omaha", "lowball"]
+rust-version = "1.78"
 
 # Sub-crate path deps are declared inline as each crate is bootstrapped.
 [workspace.dependencies]
@@ -44,7 +48,16 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+rust-version.workspace = true
+readme = "README.md"
 description = "Unified poker hand evaluator: Hold'em, 8-or-better low, A-5 lowball, 2-7 lowball, Omaha"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 # Default to every variant. The crate's only downstream consumer
@@ -70,12 +83,12 @@ all = ["holdem", "eight-low", "deuce-seven", "omaha", "badugi"]
 cuda = ["phe-holdem?/cuda", "phe-omaha?/cuda"]
 
 [dependencies]
-phe-core = { path = "crates/core" }
-phe-holdem = { path = "crates/holdem", optional = true }
-phe-eight-low = { path = "crates/eight-low", optional = true }
-phe-deuce-seven = { path = "crates/deuce-seven", optional = true }
-phe-omaha = { path = "crates/omaha", optional = true }
-phe-badugi = { path = "crates/badugi", optional = true }
+phe-core = { version = "0.1.0", path = "crates/core" }
+phe-holdem = { version = "0.1.0", path = "crates/holdem", optional = true }
+phe-eight-low = { version = "0.1.0", path = "crates/eight-low", optional = true }
+phe-deuce-seven = { version = "0.1.0", path = "crates/deuce-seven", optional = true }
+phe-omaha = { version = "0.1.0", path = "crates/omaha", optional = true }
+phe-badugi = { version = "0.1.0", path = "crates/badugi", optional = true }
 
 [dev-dependencies]
-phe-eight-low = { path = "crates/eight-low" }
+phe-eight-low = { version = "0.1.0", path = "crates/eight-low" }

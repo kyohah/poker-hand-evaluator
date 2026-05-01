@@ -5,14 +5,21 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+rust-version.workspace = true
 description = "2-7 lowball (deuce-seven) hand evaluator (5 cards only) on top of phe-core"
 
 [dependencies]
-phe-core = { path = "../core" }
-phe-deuce-seven-assets = { path = "../deuce-seven-assets" }
-phe-holdem = { path = "../holdem" }
+phe-core = { version = "0.1.0", path = "../core" }
+phe-deuce-seven-assets = { version = "0.1.0", path = "../deuce-seven-assets" }
+phe-holdem = { version = "0.1.0", path = "../holdem" }
 
 [dev-dependencies]
+# phe-scripts is workspace-internal (publish = false). Omit `version`
+# so `cargo publish` strips this dev-dep from the released .crate
+# rather than failing to resolve it on crates.io.
 phe-scripts = { path = "../../scripts" }
 criterion = { version = "0.5", features = ["html_reports"] }
 

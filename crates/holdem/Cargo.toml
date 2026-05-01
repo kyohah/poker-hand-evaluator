@@ -5,11 +5,15 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
+rust-version.workspace = true
 description = "Hold'em high evaluator (5-7 cards) on top of phe-core"
 
 [dependencies]
-phe-core = { path = "../core" }
-phe-holdem-assets = { path = "../holdem-assets" }
+phe-core = { version = "0.1.0", path = "../core" }
+phe-holdem-assets = { version = "0.1.0", path = "../holdem-assets" }
 cudarc = { version = "0.19", default-features = false, features = ["std", "driver", "nvrtc", "cuda-13020", "dynamic-loading"], optional = true }
 thiserror = { version = "2", optional = true }
 
