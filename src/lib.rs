@@ -53,6 +53,23 @@ pub use phe_omaha as omaha;
 /// Implementations are typically zero-sized unit structs (`HighRule`,
 /// `DeuceSevenLowRule`, ...) so values are essentially free; pass them
 /// by value into composites like [`HiLoRule`].
+///
+/// # Examples
+///
+/// ```
+/// use poker_hand_evaluator::{HandRule, HighRule};
+/// // 7-card eval — royal flush in spades + two off-suit junkers.
+/// let cards = [
+///     12 * 4 + 3, // A♠
+///     11 * 4 + 3, // K♠
+///     10 * 4 + 3, // Q♠
+///     9 * 4 + 3,  // J♠
+///     8 * 4 + 3,  // T♠
+///     0 * 4 + 0,  // 2♣
+///     0 * 4 + 1,  // 2♦
+/// ];
+/// assert!(HighRule.evaluate(&cards) > 0);
+/// ```
 pub trait HandRule: Send + Sync {
     /// Strength type returned by [`evaluate`](Self::evaluate). Must
     /// be totally ordered (higher = stronger) so callers can compare,

@@ -162,6 +162,29 @@ pub fn evaluate_plo4_cards(
 /// All 9 cards must be in `[0, 51]`; out-of-range inputs are
 /// undefined behaviour (matches the C reference). Duplicate cards
 /// across `board` and `hole` are silently accepted.
+///
+/// # Examples
+///
+/// ```
+/// use phe_omaha::evaluate_plo4_cards_arr;
+/// // PLO4 royal: hole supplies 2 spades (A♠ K♠), board supplies the
+/// // other three (Q♠ J♠ T♠) plus two unrelated junkers.
+/// let board = [
+///     8 * 4 + 3,  // T♠
+///     9 * 4 + 3,  // J♠
+///     10 * 4 + 3, // Q♠
+///     5 * 4 + 0,  // 7♣
+///     0 * 4 + 2,  // 2♥
+/// ];
+/// let hole = [
+///     11 * 4 + 3, // K♠
+///     12 * 4 + 3, // A♠
+///     0 * 4 + 1,  // 2♦
+///     1 * 4 + 1,  // 3♦
+/// ];
+/// // Cactus-Kev rank 1 = best possible hand.
+/// assert_eq!(evaluate_plo4_cards_arr(board, hole), 1);
+/// ```
 #[inline]
 pub fn evaluate_plo4_cards_arr(board: [u8; 5], hole: [u8; 4]) -> i32 {
     evaluate_plo4_cards(
