@@ -61,6 +61,14 @@ omaha = ["dep:phe-omaha"]
 badugi = ["dep:phe-badugi"]
 all = ["holdem", "eight-low", "deuce-seven", "omaha", "badugi"]
 
+# Activate the NVRTC CUDA backend on every variant that ships one
+# (currently `phe-holdem` and `phe-omaha`). Variants that don't enable
+# their own optional `cuda` feature are silently skipped — the `?/cuda`
+# weak-feature syntax means this only fires when the variant itself is
+# already turned on. Solver consumers typically pin
+# `features = ["all", "cuda"]`.
+cuda = ["phe-holdem?/cuda", "phe-omaha?/cuda"]
+
 [dependencies]
 phe-core = { path = "crates/core" }
 phe-holdem = { path = "crates/holdem", optional = true }

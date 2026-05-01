@@ -26,6 +26,15 @@
 // callers — most notably GPU code that builds device-side copies of
 // LOOKUP / OFFSETS / CARDS — without forcing them to depend on each
 // internal crate by hand.
+//
+// **CUDA backend.** Enable the facade-level `cuda` feature to activate
+// the NVRTC kernel on every variant that ships one. Reach the per-rule
+// context as `poker_hand_evaluator::holdem::cuda::HoldemEvalContext`
+// (and similarly `omaha::cuda` once that's wired). The kernel and
+// device-resident lookup tables sit behind `phe-holdem/cuda` /
+// `phe-omaha/cuda` per-variant features; the facade just propagates
+// them via the weak-feature `?/cuda` syntax so disabling a variant
+// silently skips its CUDA backend.
 #[cfg(feature = "badugi")]
 pub use phe_badugi as badugi;
 pub use phe_core as core;
