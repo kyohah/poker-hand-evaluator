@@ -8,6 +8,8 @@ pub mod flush_5card;
 pub mod hash;
 pub mod eval;
 
+pub use dp::DP;
+
 pub use batch::evaluate_plo4_batch;
 pub use eval::evaluate_plo4_cards;
 

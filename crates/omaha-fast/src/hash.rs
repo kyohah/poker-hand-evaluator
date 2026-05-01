@@ -11,17 +11,18 @@
 //! * `k` ∈ `[0, 5]`; `DP`/`CHOOSE` third dim is 10.
 //! * `i` ∈ `[0, 14]` for `hash_binary`; `binary` is at most 15 bits.
 
-use crate::dp::{CHOOSE, DP};
+pub use crate::dp::{CHOOSE, DP};
 
 /// Hashes a 5-multiset (k=5) over 13 ranks given as a quinary
 /// histogram. `k` must equal `q.iter().sum::<u8>() as i32`.
+///
+/// Original early-exit form: bails out as soon as `k` reaches 0,
+/// typically after 5-7 iterations. Best for the single-hand eval
+/// path where each call is on the critical latency path.
 #[inline(always)]
 pub fn hash_quinary(q: &[u8; 13], mut k: i32) -> u32 {
     let mut sum: u32 = 0;
     let len = 13usize;
-    // SAFETY: q[i] ∈ [0,4], (len-i-1) ∈ [0,12], k ∈ [0,5] for any
-    // valid PLO4 input — see module-level invariants. All within
-    // DP's [5][14][10] bounds.
     unsafe {
         for i in 0..len {
             let qi = *q.get_unchecked(i);
@@ -32,6 +33,30 @@ pub fn hash_quinary(q: &[u8; 13], mut k: i32) -> u32 {
             if k <= 0 {
                 break;
             }
+        }
+    }
+    sum
+}
+
+/// Branchless variant of `hash_quinary` — every 13-iteration runs to
+/// completion, with contributions from `k <= 0` masked out via a
+/// cmov-style select. Slightly more work per call than the early-exit
+/// form, but the lack of branches lets LLVM unroll / vectorize the
+/// outer loop in batch contexts. Use this from the batch's pass-1
+/// where 100 000+ calls in a tight loop benefit from outer-loop
+/// vectorization.
+#[inline(always)]
+pub fn hash_quinary_branchless(q: &[u8; 13], k_init: i32) -> u32 {
+    let mut sum: u32 = 0;
+    let mut k = k_init;
+    unsafe {
+        for i in 0..13 {
+            let qi = *q.get_unchecked(i) as usize;
+            let kk = k.max(0).min(9) as usize;
+            let raw = *DP.get_unchecked(qi).get_unchecked(12 - i).get_unchecked(kk);
+            let mask: u32 = ((k > 0) as u32).wrapping_neg();
+            sum = sum.wrapping_add(raw & mask);
+            k -= *q.get_unchecked(i) as i32;
         }
     }
     sum

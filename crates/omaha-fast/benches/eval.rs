@@ -1,5 +1,8 @@
-//! Throughput micro-bench for `phe-omaha-fast::evaluate_plo4_cards`.
-//! 10 000 deterministic random hands per iteration.
+//! Throughput micro-bench for `phe-omaha-fast`.
+//!
+//! Compares single-hand vs batch APIs on 100 000 random hands. The
+//! large fixture set is chosen so the NOFLUSH_PLO4 access pattern
+//! exceeds L3 cache size — the regime where batch + prefetch wins.
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use phe_omaha_fast::{evaluate_plo4_batch, evaluate_plo4_cards};
@@ -12,9 +15,7 @@ impl Rng {
     fn new(seed: u64) -> Self { Self(seed) }
     fn next_u64(&mut self) -> u64 {
         let mut x = self.0;
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
+        x ^= x << 13; x ^= x >> 7; x ^= x << 17;
         self.0 = x;
         x
     }
@@ -78,5 +79,48 @@ fn bench_batch(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_single, bench_batch);
+/// Lower-bound bench — only computes the noflush index for each hand,
+/// no NOFLUSH_PLO4 lookup. Tells us how much of the batch time is the
+/// pass-1 CPU work (hash_quinary × 2 + histograms).
+fn bench_pass1_only(c: &mut Criterion) {
+    let fixtures = fixtures_u8();
+    use phe_omaha_fast::dp::DP;
+    c.bench_function("plo4_pass1_only_100k", |b| {
+        b.iter(|| {
+            let mut acc: u32 = 0;
+            for (hole, board) in &fixtures {
+                let mut qb = [0u8; 13];
+                let mut qh = [0u8; 13];
+                qb[(board[0] >> 2) as usize] += 1;
+                qb[(board[1] >> 2) as usize] += 1;
+                qb[(board[2] >> 2) as usize] += 1;
+                qb[(board[3] >> 2) as usize] += 1;
+                qb[(board[4] >> 2) as usize] += 1;
+                qh[(hole[0] >> 2) as usize] += 1;
+                qh[(hole[1] >> 2) as usize] += 1;
+                qh[(hole[2] >> 2) as usize] += 1;
+                qh[(hole[3] >> 2) as usize] += 1;
+                // hash_quinary inline, branchless 13-iter
+                let mut sb: u32 = 0;
+                let mut k = 5i32;
+                for i in 0..13 {
+                    let kk = k.max(0) as usize;
+                    sb = sb.wrapping_add(DP[qb[i] as usize][12 - i][kk]);
+                    k -= qb[i] as i32;
+                }
+                let mut sh: u32 = 0;
+                let mut k = 4i32;
+                for i in 0..13 {
+                    let kk = k.max(0) as usize;
+                    sh = sh.wrapping_add(DP[qh[i] as usize][12 - i][kk]);
+                    k -= qh[i] as i32;
+                }
+                acc ^= sb.wrapping_mul(1820).wrapping_add(sh);
+                black_box(acc);
+            }
+        });
+    });
+}
+
+criterion_group!(benches, bench_single, bench_batch, bench_pass1_only);
 criterion_main!(benches);

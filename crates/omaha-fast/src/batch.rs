@@ -20,7 +20,7 @@
 
 use crate::dp::BIT_OF_DIV_4;
 use crate::flush_5card::FLUSH;
-use crate::hash::{hash_binary, hash_quinary};
+use crate::hash::{hash_binary, hash_quinary, hash_quinary_branchless};
 use phe_omaha_fast_assets::{FLUSH_PLO4, NOFLUSH_PLO4};
 
 #[cfg(target_arch = "x86_64")]
@@ -47,8 +47,8 @@ fn noflush_index(c1: i32, c2: i32, c3: i32, c4: i32, c5: i32,
         *quinary_hole.get_unchecked_mut((h3 >> 2) as usize) += 1;
         *quinary_hole.get_unchecked_mut((h4 >> 2) as usize) += 1;
     }
-    let board_hash = hash_quinary(&quinary_board, 5);
-    let hole_hash = hash_quinary(&quinary_hole, 4);
+    let board_hash = hash_quinary_branchless(&quinary_board, 5);
+    let hole_hash = hash_quinary_branchless(&quinary_hole, 4);
     (board_hash * 1820 + hole_hash) as usize
 }
 
