@@ -15,7 +15,8 @@
     feature = "eight-low",
     feature = "deuce-seven",
     feature = "omaha",
-    feature = "badugi"
+    feature = "badugi",
+    feature = "three-card"
 ))]
 // `card = rank * 4 + suit` literals are kept verbose with the
 // explicit `+ 0` for the club suit and `0 *` / `12 *` for the rank
@@ -26,7 +27,7 @@
 
 use poker_hand_evaluator::{
     AceFiveLowRule, BadugiRule, DeuceSevenLowRule, EightLowQualifiedRule, HandRule, HiLoRule,
-    HighRule, OmahaHighRule,
+    HighRule, OmahaHighRule, ThreeCardRule,
 };
 
 // Hold'em-style card ids: card = rank*4 + suit; rank 0=2, 12=A; suit 0=c..3=s.
@@ -186,6 +187,20 @@ fn badugi_rule_via_facade_uses_holdem_encoding() {
     let worse = [12 * 4 + 0, 0 * 4 + 1, 1 * 4 + 2, 3 * 4 + 3];
     let s2 = BadugiRule.evaluate(&worse);
     assert!(s > s2);
+}
+
+#[test]
+fn three_card_rule_via_facade_uses_holdem_encoding() {
+    // A♠ K♠ Q♠ (suit is irrelevant for 3-card; this is the highest
+    // possible high card) vs 2♣ 7♦ 9♥ (a junk high card).
+    let strong = ThreeCardRule.evaluate(&[ACE_S, KING_S, 10 * 4 + 3]);
+    let weak = ThreeCardRule.evaluate(&[0 * 4 + 0, 5 * 4 + 1, 7 * 4 + 2]);
+    assert!(strong > weak);
+
+    // Category bits: high card = 0, pair = 1, trips = 2.
+    let trips = ThreeCardRule.evaluate(&[ACE_S, ACE_C, ACE_D]);
+    assert_eq!(trips >> 12, 2);
+    assert!(trips > strong);
 }
 
 #[test]

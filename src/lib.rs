@@ -47,6 +47,8 @@ pub use phe_eight_low as eight_low;
 pub use phe_holdem as holdem;
 #[cfg(feature = "omaha")]
 pub use phe_omaha as omaha;
+#[cfg(feature = "three-card")]
+pub use phe_three_card as three_card;
 
 /// A rule that can score a poker hand.
 ///
@@ -212,6 +214,24 @@ impl HandRule for BadugiRule {
             cards.len()
         );
         phe_badugi::BadugiRule::evaluate([cards[0], cards[1], cards[2], cards[3]])
+    }
+}
+
+#[cfg(feature = "three-card")]
+pub use phe_three_card::ThreeCardRule;
+
+#[cfg(feature = "three-card")]
+impl HandRule for ThreeCardRule {
+    type Strength = u16;
+
+    fn evaluate(&self, cards: &[u8]) -> u16 {
+        assert_eq!(
+            cards.len(),
+            3,
+            "ThreeCardRule expects 3 cards, got {}",
+            cards.len()
+        );
+        phe_three_card::ThreeCardRule::evaluate([cards[0], cards[1], cards[2]])
     }
 }
 
