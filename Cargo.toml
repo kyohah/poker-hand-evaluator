@@ -96,3 +96,15 @@ phe-three-card = { version = "0.1.0", path = "crates/three-card", optional = tru
 [dev-dependencies]
 phe-eight-low = { version = "0.1.0", path = "crates/eight-low" }
 proptest = "1"
+
+[[example]]
+name = "showdown"
+required-features = ["holdem"]
+
+[[example]]
+name = "heads_up_equity"
+required-features = ["holdem"]
+
+[[example]]
+name = "omaha_eval"
+required-features = ["omaha"]

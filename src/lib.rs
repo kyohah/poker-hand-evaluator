@@ -59,6 +59,7 @@ pub use phe_three_card as three_card;
 /// # Examples
 ///
 /// ```
+/// # #[cfg(feature = "holdem")] {
 /// use poker_hand_evaluator::{HandRule, HighRule};
 /// // 7-card eval — royal flush in spades + two off-suit junkers.
 /// let cards = [
@@ -71,6 +72,7 @@ pub use phe_three_card as three_card;
 ///     0 * 4 + 1,  // 2♦
 /// ];
 /// assert!(HighRule.evaluate(&cards) > 0);
+/// # }
 /// ```
 pub trait HandRule: Send + Sync {
     /// Strength type returned by [`evaluate`](Self::evaluate). Must
